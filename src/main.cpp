@@ -1,32 +1,27 @@
 #include <cassert>
-#include <fstream>
-#include <unordered_map>
+#include <cstdio>
+#include <iostream>
+#include <memory>
+#include <string>
 
 using namespace std;
 
-std::unordered_map<char, const char *> generator = {
-    {'k', R"(fun @main(): i32 {
-%entry:
-  ret 0
-}
-)"},
-    {'r', R"(  .text
-  .globl main
-main:
-  li a0, 0
-  ret
-)"},
-    {'p', R"(  .text
-  .globl main
-main:
-  li a0, 0
-  ret
-)"},
-};
+extern FILE *yyin;
+extern int yyparse(unique_ptr<string> &ast);
 
 int main(int argc, const char *argv[]) {
   assert(argc == 5);
-  ofstream ofs(argv[4]);
-  ofs << generator[argv[1][1]];
+  auto mode = argv[1];
+  auto input = argv[2];
+  auto output = argv[4];
+
+  yyin = fopen(input, "r");
+  assert(yyin);
+
+  unique_ptr<string> ast;
+  auto ret = yyparse(ast);
+  assert(!ret);
+
+  cout << *ast << endl;
   return 0;
 }
