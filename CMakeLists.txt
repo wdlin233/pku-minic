@@ -45,6 +45,7 @@ link_directories(${LIB_DIR})
 
 # project include directories
 include_directories(src)
+include_directories(include)
 include_directories(${CMAKE_CURRENT_BINARY_DIR})
 include_directories(${INC_DIR})
 

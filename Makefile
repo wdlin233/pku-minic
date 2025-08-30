@@ -10,4 +10,7 @@ clean:
 docker:
 	sudo docker run -it -v /home/wdlin/sysy-cmake-template:/root/compiler maxxing/compiler-dev bash
 
-.PHONY: all build clean docker
+test:
+	build/compiler -koopa test/hello.c -o hello.koopa
+
+.PHONY: all build clean docker test
