@@ -1,4 +1,4 @@
-#include "ast.h"
+#include "../include/ast.hpp"
 
 FuncTypeAST::FuncTypeAST(FuncTypeAST::Type t) : type(t) {}
 
