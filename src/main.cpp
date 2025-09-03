@@ -4,6 +4,8 @@
 #include <memory>
 #include <string>
 #include "../include/ast.hpp"
+#include "../include/generator.hpp"
+#include "../include/ir.hpp"
 
 using namespace std;
 
@@ -25,5 +27,12 @@ int main(int argc, const char *argv[]) {
 
   ast->Dump();
   cout << endl;
+
+  IRGenerator generator;
+  CompUnitAST* comp_unit_ast = static_cast<CompUnitAST*>(ast.get()); 
+  auto koopa_program = generator.Generate(*comp_unit_ast);
+
+  koopa_program->Dump(std::cout);
+
   return 0;
 }
