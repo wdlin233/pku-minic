@@ -36,9 +36,10 @@ Hexadecimal     0[xX][0-9a-fA-F]+
 
 %%
 
-[ \t\r]+        { }
-\n              { current_token_start_column = 1; }
-"//"[^\n]*      { }
+[ \t\r]+                            { }
+\n                                  { current_token_start_column = 1; }
+"//"[^\n]*                          { }
+"/*"[^*]*"*"+([^*/][^*]*"*"+)*"/"   { }
 
 "int"           { return INT; }
 "return"        { return RETURN; }
