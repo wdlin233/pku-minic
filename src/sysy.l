@@ -1,22 +1,30 @@
 %option noyywrap
 %option nounput
 %option noinput
+%option yylineno
 
 %{
 
 #include <cstdlib>
 #include <string>
+#include <iostream>
 
 // include Bison generated hpp
 #include "sysy.tab.hpp"
 
 using namespace std;
 
-%}
+extern YYLTYPE yylloc;
 
-/* 空白符和注释，仅处理 // ... 注释 */
-WhiteSpace      [ \t\n\r]*
-LineComment     "//".*
+int current_token_start_column = 1;
+
+#define YY_USER_ACTION \
+    yylloc.first_line = yylineno; \
+    yylloc.first_column = current_token_start_column; \
+    yylloc.last_line = yylineno; \
+    yylloc.last_column = current_token_start_column + yyleng - 1; \
+    current_token_start_column += yyleng;
+%}
 
 /* 标识符 */
 Identifier      [a-zA-Z_][a-zA-Z0-9_]*
@@ -28,8 +36,9 @@ Hexadecimal     0[xX][0-9a-fA-F]+
 
 %%
 
-{WhiteSpace}    { }
-{LineComment}   { }
+[ \t\r]+        { }
+\n              { current_token_start_column = 1; }
+"//"[^\n]*      { }
 
 "int"           { return INT; }
 "return"        { return RETURN; }
@@ -40,6 +49,9 @@ Hexadecimal     0[xX][0-9a-fA-F]+
 {Octal}         { yylval.int_val = strtol(yytext, nullptr, 0); return INT_CONST; }
 {Hexadecimal}   { yylval.int_val = strtol(yytext, nullptr, 0); return INT_CONST; }
 
-.               { return yytext[0]; }
+.               { 
+                    std::cerr << "Lexical error at " << yylloc.first_line << ":" << yylloc.first_column << ": Unexpected character '" << yytext[0] << "'" << std::endl;
+                    return yytext[0];
+                }
 
 %%

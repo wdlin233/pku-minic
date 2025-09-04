@@ -10,6 +10,7 @@
 #include <memory>
 #include <string>
 #include "ast.hpp"
+#include "sysy.tab.hpp"
 
 // 声明 lexer 函数和错误处理函数
 int yylex();
@@ -17,7 +18,12 @@ void yyerror(std::unique_ptr<BaseAST> &ast, const char *s);
 
 using namespace std;
 
+// 声明全局的 yylloc 变量，它将由 Flex 填充并被 Bison 使用
+extern YYLTYPE yylloc;
+
 %}
+
+%define parse.error verbose
 
 // Bison 允许修改 yyparse() 函数的签名，给它加上参数
 // int yyparse(std::unique_ptr<std::string> &ast)
@@ -34,6 +40,8 @@ using namespace std;
   int int_val;
   BaseAST *ast_val;
 }
+
+%locations
 
 // lexer 返回的所有 token 种类的声明
 // 注意 IDENT 和 INT_CONST 会返回 token 的值, 分别对应 str_val 和 int_val
@@ -118,5 +126,5 @@ Number
 // 定义错误处理函数, 其中第二个参数是错误信息
 // parser 如果发生错误 (例如输入的程序出现了语法错误), 就会调用这个函数
 void yyerror(unique_ptr<BaseAST> &ast, const char *s) {
-  cerr << "error: " << s << endl;
+  cerr << "Error at: " << yylloc.first_line << ":" << yylloc.first_column << ":" << s << endl;
 }
