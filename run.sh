@@ -19,6 +19,11 @@ case "$1" in
     echo "==> Test finished. Output is hello.koopa"
     ;;
 
+  autotest)
+    echo "==> Running autotest with specific test level $2"
+    autotest -s $2 /root/compiler
+    ;;
+
   *)
     echo "Usage: $0 {docker}"
     echo "For build and test, please use the standard CMake workflow inside the Docker environment."
