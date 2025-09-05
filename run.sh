@@ -20,8 +20,12 @@ case "$1" in
     ;;
 
   autotest)
-    echo "==> Running autotest with specific test level $2"
-    autotest -s $2 /root/compiler
+    echo "==> Running autotest with specific test level $2 with $3 args"
+    autotest $3 -s $2 /root/compiler
+    ;;
+  autotestwd)
+    echo "==> Running autotest with specific test level $2 with $3 and -w args"
+    autotest -w wd $3 -s $2 /root/compiler
     ;;
 
   *)
