@@ -7,6 +7,7 @@
 #include "../include/ast.hpp"
 #include "../include/generator.hpp"
 #include "../include/ir.hpp"
+#include "../include/riscv_generator.hpp"
 
 using namespace std;
 
@@ -16,10 +17,11 @@ extern int yyparse(unique_ptr<BaseAST> &ast);
 int main(int argc, const char *argv[]) {
   if (argc < 5) {
     std::cerr << "Usage: " << argv[0] << " -koopa <input_file> -o <output_file>" << std::endl;
+    std::cerr << "       "<< argv[0] << " -riscv <input_file> -o <output_file>" << std::endl;
     return 1;
   }
 
-  auto mode = argv[1];
+  auto mode = std::string(argv[1]);
   auto input = argv[2];
   auto output = argv[4];
 
@@ -43,9 +45,17 @@ int main(int argc, const char *argv[]) {
     return 1;
   }
 
-  koopa_program->Dump(output_file);
-
-  std::cout << "Successfully generated Koopa IR to " << output << std::endl;
-
+  if (mode == "-koopa") {
+    koopa_program->Dump(output_file);
+    std::cout << "Successfully generated Koopa IR to " << output << std::endl;
+  } else if (mode == "-riscv") {
+    RISCVGenerator riscv_generator;
+    riscv_generator.GenerateRISCV(*koopa_program, output_file);
+    std::cout << "Successfully generated RISCV assembly to " << output << std::endl;
+  } else {
+    std::cerr << "Error: Unkown mode " << mode << std::endl;
+    return 1;
+  }
+  
   return 0;
 }
