@@ -1,5 +1,6 @@
 #include "../include/generator.hpp"
 #include <algorithm>
+#include <cassert>
 #include <memory>
 #include <ostream>
 #include <type_traits>
@@ -30,7 +31,7 @@ void IRGenerator::visit(const FuncDefAST& func_def) {
 }
 
 void IRGenerator::visit(const StmtAST& stmt) {
-    auto ret_val = visit(*stmt.number);
+    auto ret_val = visit(*stmt.expression);
 
     auto ret_inst = std::make_unique<Value>(
         Value::Return{ std::move(ret_val) }
@@ -41,13 +42,64 @@ void IRGenerator::visit(const StmtAST& stmt) {
     current_bb->insts.push_back(std::move(ret_inst));
 }
 
-std::unique_ptr<Value> IRGenerator::visit(const NumberAST& number) {
-    auto val = std::make_unique<Value>(
-        Value::Integer{ std::move(number.val) }
-    );
-    val->name = new_temp_var_name();
-    val->type = std::make_unique<Type>();
-    val->type->kind = Type::INTEGER;
+// UnaryExp ::= PrimaryExp | UnaryOp UnaryExp;
+std::unique_ptr<Value> IRGenerator::visit(const ExprAST& expr) {
+    if (auto number = dynamic_cast<const NumberAST*>(&expr)) {
+        auto val = std::make_unique<Value>(
+            Value::Integer{ std::move(number->val) }
+        );
+        val->name = new_temp_var_name();
+        val->type = std::make_unique<Type>();
+        val->type->kind = Type::INTEGER;
 
-    return val;
+        return val;
+    }
+    
+    if (auto unary = dynamic_cast<const UnaryExprAST*>(&expr)) {
+        auto operand = visit(*unary->operand);
+
+        switch (unary->op) {
+            case '+':
+                return operand;
+            case '-': {
+                auto zero = std::make_unique<Value>(Value::Integer{0});
+
+                auto sub_inst = std::make_unique<Value>(
+                    Value::Binary {
+                        Value::Binary::SUB,
+                        std::move(zero),
+                        std::move(operand)
+                    }
+                );
+                sub_inst->name = new_temp_var_name();
+                sub_inst->type = std::make_unique<Type>();
+                sub_inst->type->kind = Type::INTEGER;
+
+                current_bb->insts.push_back(std::move(sub_inst));
+                return std::unique_ptr<Value>(current_bb->insts.back().get());
+            }
+            case '!': {
+                auto zero = std::make_unique<Value>(Value::Integer{0});
+
+                auto eq_inst = std::make_unique<Value>(
+                    Value::Binary {
+                        Value::Binary::EQ,
+                        std::move(operand),
+                        std::move(zero)
+                    }
+                );
+                eq_inst->name = new_temp_var_name();
+                eq_inst->type = std::make_unique<Type>();
+                eq_inst->type->kind = Type::INTEGER;
+
+                current_bb->insts.push_back(std::move(eq_inst));
+                return std::unique_ptr<Value>(current_bb->insts.back().get());
+            }
+                
+            
+        }
+    }
+    
+    assert(false && "Unknown expression type");
+    return nullptr;
 }

@@ -13,6 +13,7 @@ struct Value;
 struct BasicBlock;
 struct Function;
 struct Program;
+struct Binary;
 
 struct Type {
     enum Kind {
@@ -34,14 +35,30 @@ struct Value {
         Return(std::unique_ptr<Value> v) : value(std::move(v)) {}
     };
 
+    struct Binary {
+        enum Op {
+            EQ, NE, GT, LT, GE, LE,
+            ADD, SUB, MUL, DIV, MOD,
+            AND, OR, XOR,
+            SHL, SHR, SAR,
+        };
+
+        Op op;
+        
+        std::unique_ptr<Value> lhs;
+        std::unique_ptr<Value> rhs;
+    };
+
     using Kind = std::variant<
         Integer,
-        Return
+        Return,
+        Binary
     >;
     Kind kind;
 
     Value(Integer integer) : kind(std::move(integer)) {}
     Value(Return ret) : kind(std::move(ret)) {}
+    Value(Binary binary) : kind(std::move(binary)) {}
 
     void Dump(std::ostream& os) const;
 };

@@ -20,7 +20,7 @@ void NumberAST::Dump() const {
 
 void StmtAST::Dump() const {
     std::cout << "StmtAST { ";
-    number->Dump();
+    expression->Dump();
     std::cout << " }";
 }
 
@@ -42,4 +42,8 @@ void CompUnitAST::Dump() const {
     std::cout << "CompUnitAST { ";
     func_def->Dump();
     std::cout << "}";
+}
+
+void UnaryExprAST::Dump() const {
+    std::cout << "UnaryExprAST { }";
 }

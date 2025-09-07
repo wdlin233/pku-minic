@@ -50,7 +50,7 @@ extern YYLTYPE yylloc;
 %token <int_val> INT_CONST
 
 // 非终结符的类型定义
-%type <ast_val> FuncDef FuncType Block Stmt Number
+%type <ast_val> FuncDef FuncType Block Stmt Exp PrimaryExp Number UnaryExp
 
 %%
 
@@ -108,11 +108,44 @@ Block
   ;
 
 Stmt
-  : RETURN Number ';' {
+  : RETURN Exp ';' {
     auto ast = new StmtAST();
-    ast->number = unique_ptr<NumberAST>(static_cast<NumberAST*>($2));
+    ast->expression = unique_ptr<ExprAST>(static_cast<ExprAST*>($2));
     $$ = ast;
   }
+  ;
+
+Exp
+  : UnaryExp { $$ = $1; }
+  ;
+
+// UnaryExp ::= PrimaryExp | UnaryOp UnaryExp;
+UnaryExp
+  : PrimaryExp { $$ = $1; }
+  | '+' UnaryExp {
+    auto expr = new UnaryExprAST();
+    expr->op = '+';
+    expr->operand = std::unique_ptr<ExprAST>(static_cast<ExprAST*>($2));
+    $$ = expr;
+  }
+  | '-' UnaryExp {
+    auto expr = new UnaryExprAST();
+    expr->op = '-';
+    expr->operand = std::unique_ptr<ExprAST>(static_cast<ExprAST*>($2));
+    $$ = expr;
+  }
+  | '!' UnaryExp {
+    auto expr = new UnaryExprAST();
+    expr->op = '!';
+    expr->operand = std::unique_ptr<ExprAST>(static_cast<ExprAST*>($2));
+    $$ = expr;
+  }
+  ;
+
+// PrimaryExp  ::= "(" Exp ")" | Number;
+PrimaryExp
+  : '(' Exp ')' { $$ = $2; }
+  | Number      { $$ = $1; }
   ;
 
 Number

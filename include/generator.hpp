@@ -10,7 +10,7 @@ class IRGenerator {
         void visit(const FuncDefAST& func_def);
         void visit(const StmtAST& stmt);
 
-        std::unique_ptr<Value> visit(const NumberAST& number);
+        std::unique_ptr<Value> visit(const ExprAST& number);
 
         std::unique_ptr<Program> program;
         Function* current_function = nullptr;

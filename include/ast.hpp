@@ -51,18 +51,28 @@ class BlockAST : public BaseAST {
         void Dump() const override;
 };
 
-class StmtAST : public BaseAST {
+class ExprAST : public BaseAST {};
+
+class NumberAST : public ExprAST {
     public:
-        std::unique_ptr<NumberAST> number;
+        int val;
+        explicit NumberAST(int val);
 
         void Dump() const override;
 };
 
-// 可以使用 ExprAST
-class NumberAST : public BaseAST {
+// UnaryOp and UnaryExpr
+class UnaryExprAST : public ExprAST {
     public:
-        int val;
-        explicit NumberAST(int val);
+        char op;
+        std::unique_ptr<ExprAST> operand;
+
+        void Dump() const override;
+};
+
+class StmtAST : public BaseAST {
+    public:
+        std::unique_ptr<ExprAST> expression;
 
         void Dump() const override;
 };

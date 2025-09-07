@@ -1,4 +1,19 @@
 #include "../include/ir.hpp"
+#include <cassert>
+#include <type_traits>
+#include <variant>
+
+const char* op_to_string(Value::Binary::Op op) {
+    switch (op) {
+        case Value::Binary::EQ:
+            return "eq";
+        case Value::Binary::SUB:
+            return "sub";
+        default:
+            assert(false);
+            return "";
+    }
+}
 
 void Program::Dump(std::ostream& os) const {
     for (const auto& func : functions) {
@@ -25,14 +40,35 @@ void BasicBlock::Dump(std::ostream& os) const {
 }
 
 void Value::Dump(std::ostream& os) const {
+    // check `kind` type, making `name` output
+    if (!name.empty() && !std::holds_alternative<Return>(kind) && !std::holds_alternative<Integer>(kind)) {
+        os << name << " = ";
+    }
+
     std::visit([&](auto&& arg) {
         using T = std::decay_t<decltype(arg)>;
         if constexpr (std::is_same_v<T, Integer>) {
             os << arg.value;
         } else if constexpr (std::is_same_v<T, Return>) {
             os << "ret ";
-            if (arg.value) {
+            if (!arg.value->name.empty() && !std::holds_alternative<Integer>(arg.value->kind)) {
+                // e.g. ret %2
+                os << arg.value->name;
+            } else {
                 arg.value->Dump(os);
+            }
+        } else if constexpr (std::is_same_v<T, Binary>) {
+            os << op_to_string(arg.op) << " ";
+            if (!arg.lhs->name.empty() && !std::holds_alternative<Integer>(arg.lhs->kind)) {
+                os << arg.lhs->name;
+            } else {
+                arg.lhs->Dump(os);
+            }
+            os << ", ";
+            if (!arg.rhs->name.empty() && !std::holds_alternative<Integer>(arg.rhs->kind)) {
+                os << arg.rhs->name;
+            } else {
+                arg.rhs->Dump(os);
             }
         }
     }, kind);
