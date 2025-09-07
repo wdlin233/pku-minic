@@ -43,3 +43,11 @@ std::unique_ptr<Value> IRGenerator::visit(const NumberAST& number) {
 
 `func->blocks.push_back(std::move(bb))` 以支持后续打印相关的指令.
 
+### 关于添加新的表达式解析
+
+添加新的表达式就是实现新的语法分析，构建其他类型的 AST，然后在生成 IR 时做对应的处理.
+
+语法分析在 `ast.h` 和 `sysy.y` 中. 构建 AST 实际上是在 `sysy.y` 中作语法分析，`ast.cpp` 还保留着原本的 `Dump()` 解析文本输出，感觉不是很优雅.
+
+到构建 IR 不会太复杂，但是生成汇编时需要一个寄存器分配的方法，目前还是让其固定分配.
+
