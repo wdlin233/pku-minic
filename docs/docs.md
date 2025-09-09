@@ -51,3 +51,60 @@ std::unique_ptr<Value> IRGenerator::visit(const NumberAST& number) {
 
 到构建 IR 不会太复杂，但是生成汇编时需要一个寄存器分配的方法，目前还是让其固定分配.
 
+### 解决 heap-use-after-free 错误
+
+这个错误就意味着一个指针指向的内存被 delete 了，但是另一段代码试图通过指针去访问这块内存.
+
+Freed Call Stack:
+
+```shell
+freed by thread T0 here:
+...
+#1 0x4d5ab3 in std::default_delete<Value>::operator()(Value*) const ...
+#2 0x4d4050 in std::unique_ptr<Value, ...>::~unique_ptr() ...
+...
+#7 0x4d94a6 in std::vector<std::unique_ptr<Value, ...> >::~vector() ...
+#8 0x4d940c in BasicBlock::~BasicBlock() /root/compiler/include/ir.hpp:66:8
+...
+```
+
+从中看出先释放 `BasicBlock`，然后是 `vector` 和 `unique_ptr`，也就是释放 `BasicBlock` 中的成员，是正常的生命周期结束.
+
+Crashed Call Stack:
+
+```shell
+READ of size 1 at ... thread T0
+...
+#0 0x4d5eec in std::variant<Value::Integer, Value::Return, Value::Binary>::index() const
+...
+#11 0x4d5aec in Value::~Value() ...
+#12 0x4d5aaa in std::default_delete<Value>::operator()(Value*) ...
+#13 0x4d4050 in std::unique_ptr<Value, ...>::~unique_ptr() ...
+#14 0x4d3fb4 in Value::Return::~Return() ...
+...
+#39 0x4d94a6 in std::vector<std::unique_ptr<Value, ...> >::~vector() ...
+#40 0x4d940c in BasicBlock::~BasicBlock() ...
+```
+
+从中可以看出是销毁 `Return` 指令内部的 `unique_ptr` 时发生的.
+
+也就是说被释放的对象是 `BasicBlock` 中的 `inst` vector 的一个元素，而再次释放（崩溃点）的对象是 `Value::Return` 的 `value` 成员.
+
+解决方法是：
+
+```cpp
+// origin
+current_bb->insts.push_back(std::move(sub_inst));
+return std::unique_ptr<Value>(current_bb->insts.back().get());
+
+//modified
+Value* result_ptr = sub_inst.get();
+current_bb->insts.push_back(std::move(sub_inst));
+return std::make_unique<Value>(Value::SymbolRef{result_ptr});
+```
+
+`unique_ptr` 的 `get()` 方法获取其原始指针，不转移所有权.
+
+意味着会对同一个地址进行二次释放.
+
+对于包含一个裸指针的 `SymbolRef`，析构函数不会二次 `delete`. 实际上是从日志里推出编译器设计的问题.
