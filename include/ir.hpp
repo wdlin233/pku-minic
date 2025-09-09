@@ -49,16 +49,22 @@ struct Value {
         std::unique_ptr<Value> rhs;
     };
 
+    struct SymbolRef {
+        Value* ptr;
+    };
+
     using Kind = std::variant<
         Integer,
         Return,
-        Binary
+        Binary,
+        SymbolRef
     >;
     Kind kind;
 
     Value(Integer integer) : kind(std::move(integer)) {}
     Value(Return ret) : kind(std::move(ret)) {}
     Value(Binary binary) : kind(std::move(binary)) {}
+    Value(SymbolRef ref) : kind(ref) {}
 
     void Dump(std::ostream& os) const;
 };

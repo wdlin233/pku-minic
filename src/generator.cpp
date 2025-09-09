@@ -75,8 +75,10 @@ std::unique_ptr<Value> IRGenerator::visit(const ExprAST& expr) {
                 sub_inst->type = std::make_unique<Type>();
                 sub_inst->type->kind = Type::INTEGER;
 
+                Value* result_ptr = sub_inst.get();
                 current_bb->insts.push_back(std::move(sub_inst));
-                return std::unique_ptr<Value>(current_bb->insts.back().get());
+
+                return std::make_unique<Value>(Value::SymbolRef{result_ptr});
             }
             case '!': {
                 auto zero = std::make_unique<Value>(Value::Integer{0});
@@ -92,8 +94,10 @@ std::unique_ptr<Value> IRGenerator::visit(const ExprAST& expr) {
                 eq_inst->type = std::make_unique<Type>();
                 eq_inst->type->kind = Type::INTEGER;
 
+                Value* result_ptr = eq_inst.get();
                 current_bb->insts.push_back(std::move(eq_inst));
-                return std::unique_ptr<Value>(current_bb->insts.back().get());
+
+                return std::make_unique<Value>(Value::SymbolRef{result_ptr});
             }
                 
             

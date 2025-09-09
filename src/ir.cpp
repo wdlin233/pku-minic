@@ -70,6 +70,8 @@ void Value::Dump(std::ostream& os) const {
             } else {
                 arg.rhs->Dump(os);
             }
+        } else if constexpr (std::is_same_v<T, SymbolRef>) {
+            os << arg.ptr->name;
         }
     }, kind);
 }
