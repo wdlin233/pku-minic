@@ -6,7 +6,18 @@ case "$1" in
     echo "==> Entering Docker development environment..."
     sudo docker run -it -v "$(pwd)":/root/compiler -w /root/compiler maxxing/compiler-dev bash
     ;;
-
+  build)
+    echo "==> Building project with CMake..."
+    rm -rf build
+    cmake -S . -B build
+    cmake --build build
+    ;;
+  debug)
+    echo "==> Building project with CMake..."
+    rm -rf build
+    cmake -S . -B build -DCMAKE_BUILD_TYPE=Debug
+    cmake --build build
+    ;;
   # 也可以在 CMakeLists 里构建测试
   test)
     echo "==> Running test: hello.c"
