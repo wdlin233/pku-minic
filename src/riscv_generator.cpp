@@ -47,20 +47,52 @@ void RISCVGenerator::visit(const Value& value, std::ostream& os) {
             if (current_stask_offset < 0) {
                 os << "\taddi sp, sp, " << -current_stask_offset << "\n";
             }
-            os << "\tret ";
+            os << "\tret\n";
         }
         else if constexpr (std::is_same_v<T, Value::Binary>) {
             load_value_to_reg(arg.lhs.get(), "t0", os);
             load_value_to_reg(arg.rhs.get(), "t1", os);
 
             switch (arg.op) {
+                case Value::Binary::EQ:
+                    os << "\tsub t0, t0, t1\n";
+                    os << "\tseqz t0, t0\n";  // Set if Equal to Zero
+                    break;
+                case Value::Binary::NE:
+                    os << "\tsub t0, t0, t1\n";
+                    os << "\tsnez t0, t0\n"; // Set if Not Equal to Zero
+                    break;
+                case Value::Binary::LT:
+                    os << "\tslt t0, t0, t1\n"; // Set if Less Than
+                    break;
+                case Value::Binary::GT:
+                    os << "\tsgt t0, t0, t1\n"; // Set if Greater Than (pseudo-instruction)
+                    break;
+                case Value::Binary::LE:
+                    os << "\tsgt t0, t0, t1\n"; // t0 = t0 > t1
+                    os << "\txori t0, t0, 1\n"; // t0 = !(t0 > t1)  which is t0 <= t1
+                    break;
+                case Value::Binary::GE:
+                    os << "\tslt t0, t0, t1\n"; // t0 = t0 < t1
+                    os << "\txori t0, t0, 1\n"; // t0 = !(t0 < t1) which is t0 >= t1
+                    break;
+
+                case Value::Binary::ADD:
+                    os << "\tadd t0, t0, t1\n";
+                    break;
                 case Value::Binary::SUB:
                     os << "\tsub t0, t0, t1\n";
                     break;
-                case Value::Binary::EQ:
-                    os << "\tsub t0, t0, t1\n";
-                    os << "\tseqz t0, t0\n";
+                case Value::Binary::MUL:
+                    os << "\tmul t0, t0, t1\n";
                     break;
+                case Value::Binary::DIV:
+                    os << "\tdiv t0, t0, t1\n";
+                    break;
+                case Value::Binary::MOD:
+                    os << "\trem t0, t0, t1\n";
+                    break;
+                    
                 default:
                     assert(false && "Unspported binary operation");
             }

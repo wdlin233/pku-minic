@@ -9,6 +9,12 @@ const char* op_to_string(Value::Binary::Op op) {
             return "eq";
         case Value::Binary::SUB:
             return "sub";
+        case Value::Binary::MUL:
+            return "mul";
+        case Value::Binary::DIV:
+            return "div";
+        case Value::Binary::MOD:
+            return "mod";
         default:
             assert(false);
             return "";

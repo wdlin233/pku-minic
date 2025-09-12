@@ -49,7 +49,7 @@ extern YYLTYPE yylloc;
 %token <int_val> INT_CONST
 
 // 非终结符的类型定义
-%type <ast_val> FuncDef FuncType Block Stmt Exp PrimaryExp Number UnaryExp
+%type <ast_val> FuncDef FuncType Block Stmt Exp PrimaryExp Number AddExp MulExp UnaryExp
 
 %%
 
@@ -114,8 +114,54 @@ Stmt
   }
   ;
 
+// Exp ::= AddExp;
 Exp
+  : AddExp { $$ = $1; }
+  ;
+
+// AddExp ::= MulExp | AddExp ("+" | "-") MulExp;
+AddExp
+  : MulExp { $$ = $1; }
+  | AddExp '+' MulExp { 
+    auto expr = new BinaryExprAST();
+    expr->op = '+';
+    expr->lhs = std::unique_ptr<ExprAST>(static_cast<ExprAST*>($1));
+    expr->rhs = std::unique_ptr<ExprAST>(static_cast<ExprAST*>($3));
+    $$ = expr; 
+  }
+  | AddExp '-' MulExp { 
+    auto expr = new BinaryExprAST();
+    expr->op = '-';
+    expr->lhs = std::unique_ptr<ExprAST>(static_cast<ExprAST*>($1));
+    expr->rhs = std::unique_ptr<ExprAST>(static_cast<ExprAST*>($3));
+    $$ = expr; 
+  }
+  ;
+
+// MulExp ::= UnaryExp | MulExp ("*" | "/" | "%") UnaryExp;
+MulExp
   : UnaryExp { $$ = $1; }
+  | MulExp '*' UnaryExp { 
+    auto expr = new BinaryExprAST();
+    expr->op = '*';
+    expr->lhs = std::unique_ptr<ExprAST>(static_cast<ExprAST*>($1));
+    expr->rhs = std::unique_ptr<ExprAST>(static_cast<ExprAST*>($3));
+    $$ = expr; 
+  }
+  | MulExp '/' UnaryExp { 
+    auto expr = new BinaryExprAST();
+    expr->op = '/';
+    expr->lhs = std::unique_ptr<ExprAST>(static_cast<ExprAST*>($1));
+    expr->rhs = std::unique_ptr<ExprAST>(static_cast<ExprAST*>($3));
+    $$ = expr; 
+  }
+  | MulExp '%' UnaryExp { 
+    auto expr = new BinaryExprAST();
+    expr->op = '%';
+    expr->lhs = std::unique_ptr<ExprAST>(static_cast<ExprAST*>($1));
+    expr->rhs = std::unique_ptr<ExprAST>(static_cast<ExprAST*>($3));
+    $$ = expr; 
+  }
   ;
 
 // UnaryExp ::= PrimaryExp | UnaryOp UnaryExp;

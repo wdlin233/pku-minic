@@ -44,6 +44,10 @@ void CompUnitAST::Dump() const {
     std::cout << "}";
 }
 
+void BinaryExprAST::Dump() const {
+    std::cout << "BinaryExprAST { }";
+}
+
 void UnaryExprAST::Dump() const {
     std::cout << "UnaryExprAST { }";
 }

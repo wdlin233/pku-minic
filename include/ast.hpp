@@ -61,6 +61,15 @@ class NumberAST : public ExprAST {
         void Dump() const override;
 };
 
+class BinaryExprAST : public ExprAST {
+    public:
+        char op;
+        std::unique_ptr<ExprAST> lhs;
+        std::unique_ptr<ExprAST> rhs;
+
+        void Dump() const override;
+};
+
 // UnaryOp and UnaryExpr
 class UnaryExprAST : public ExprAST {
     public:

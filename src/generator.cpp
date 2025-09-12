@@ -55,6 +55,37 @@ std::unique_ptr<Value> IRGenerator::visit(const ExprAST& expr) {
         return val;
     }
     
+    if (auto binary = dynamic_cast<const BinaryExprAST*>(&expr)) {
+        auto lhs_val = visit(*binary->lhs);
+        auto rhs_val = visit(*binary->rhs);
+
+        Value::Binary::Op op;
+        switch (binary->op) {
+            case '+': op = Value::Binary::ADD; break;
+            case '-': op = Value::Binary::SUB; break;
+            case '*': op = Value::Binary::MUL; break;
+            case '/': op = Value::Binary::DIV; break;
+            case '%': op = Value::Binary::MOD; break;
+            default:
+                assert(false && "Unsupported binary operator");
+        }
+        auto bin_inst = std::make_unique<Value>(
+            Value::Binary {
+                op,
+                std::move(lhs_val),
+                std::move(rhs_val)
+            }
+        );
+        bin_inst->name = new_temp_var_name();
+        bin_inst->type = std::make_unique<Type>();
+        bin_inst->type->kind = Type::INTEGER;
+
+        Value* result_ptr = bin_inst.get();
+        current_bb->insts.push_back(std::move(bin_inst));
+
+        return std::make_unique<Value>(Value::SymbolRef{result_ptr});
+    }
+
     if (auto unary = dynamic_cast<const UnaryExprAST*>(&expr)) {
         auto operand = visit(*unary->operand);
 
