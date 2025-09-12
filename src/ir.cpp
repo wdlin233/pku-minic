@@ -7,6 +7,19 @@ const char* op_to_string(Value::Binary::Op op) {
     switch (op) {
         case Value::Binary::EQ:
             return "eq";
+        case Value::Binary::NE:
+            return "ne";
+        case Value::Binary::LT:
+            return "lt";
+         case Value::Binary::GT:
+            return "gt";
+         case Value::Binary::LE:
+            return "le";
+         case Value::Binary::GE:
+            return "ge";
+
+        case Value::Binary::ADD:
+            return "add";
         case Value::Binary::SUB:
             return "sub";
         case Value::Binary::MUL:
@@ -15,8 +28,9 @@ const char* op_to_string(Value::Binary::Op op) {
             return "div";
         case Value::Binary::MOD:
             return "mod";
+        
         default:
-            assert(false);
+            assert(false && "Unsupported op for transforming to string");
             return "";
     }
 }
