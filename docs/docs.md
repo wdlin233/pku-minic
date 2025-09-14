@@ -108,3 +108,94 @@ return std::make_unique<Value>(Value::SymbolRef{result_ptr});
 意味着会对同一个地址进行二次释放.
 
 对于包含一个裸指针的 `SymbolRef`，析构函数不会二次 `delete`. 实际上是从日志里推出编译器设计的问题.
+
+### 添加比较和逻辑表达式
+
+在 Bison 的语法规则中，一个符号只能代表一个 Token，不修改 Flex 是不能识别诸如 "<=" 这样的表达式的.
+
+也就是说，对于
+
+```bison
+// RelExp ::= AddExp | RelExp ("<" | ">" | "<=" | ">=") AddExp;
+RelExp
+  : AddExp { $$ = $1; }
+  | RelExp '<' AddExp { }
+  | RelExp '>' AddExp { }
+  | RelExp "<=" AddExp { }
+  | RelExp ">=" AddExp { }
+  ;
+```
+
+不添加
+
+```flex
+"<="             { return T_LE; }
+```
+
+的 Parser 只会收到 RelExp, '<', '=', AddExp. 则无法匹配.
+
+另外，Flex 会优先匹配更长的规则.
+
+Yash 这个插件很不错，可以及时发现一些错误.
+
+### 关于 NBFS
+
+自己设计的话，必然要考虑优先级.
+
+做实验的同学只要实现功能就好了，MaxXing 考虑的就多了.
+
+### RISCV 只支持小于指令 slt、按位运算与逻辑运算
+
+对于这段程序：
+
+```c
+int f(int a, int b) {
+    return (a > b);
+}
+```
+
+其汇编为
+
+```asm
+f:
+    slt     a0, a1, a0
+    ret
+```
+
+如果将大于换成小于，生成 `slt a0, a0, a1`. 所以实际上大于 `sgt` 指令就是对不同操作数的小于指令.
+
+实际上这个问题是对处理 `LAND` 和 `LOR` 的一个例子，RISCV 汇编只支持按位运算而不支持逻辑运算.
+
+对于这段代码：
+
+```c
+int f(int a, int b) {
+    return (a && b);
+}
+```
+
+经过 `-O3` 优化的 RISCV 汇编：
+
+```asm
+f:
+    snez    a0, a0
+    snez    a1, a1
+    and     a0, a0, a1
+    ret
+```
+
+`snez` 做的是将操作数“规范化”为布尔值的操作.
+
+逻辑或运算也可以用类似的方法得到，所以说 Compiler Explorer 是神.
+
+对于生成的 Koopa IR 也需要类似的中间表示，否则不能通过 `-koopa` 测试：
+
+```koopa
+fun @main(): i32 {
+%entry:
+    %2 = ne 2, 0
+    %3 = ne 4, 0
+    %4 = and %2, %3
+    ret %4
+}
+```
