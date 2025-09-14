@@ -18,16 +18,10 @@ case "$1" in
     cmake -S . -B build -DCMAKE_BUILD_TYPE=Debug
     cmake --build build
     ;;
-  # 也可以在 CMakeLists 里构建测试
   test)
-    echo "==> Running test: hello.c"
-    # 先确保项目已经构建
-    if [ ! -f "build/compiler" ]; then
-        echo "--> Compiler not found. Building project first..."
-        bash "$0" build
-    fi
-    build/compiler -koopa test/hello.c -o hello.koopa
-    echo "==> Test finished. Output is hello.koopa"
+    cmake --build build
+    build/compiler $3 $2 -o temp.s
+    echo "==> Test finished. Output is temp.s"
     ;;
 
   autotest)
