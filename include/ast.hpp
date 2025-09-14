@@ -63,7 +63,7 @@ class NumberAST : public ExprAST {
 
 class BinaryExprAST : public ExprAST {
     public:
-        char op;
+        int op;     // avoid implicit conversion from int(%token symbol) to char
         std::unique_ptr<ExprAST> lhs;
         std::unique_ptr<ExprAST> rhs;
 

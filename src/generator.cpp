@@ -1,4 +1,5 @@
 #include "../include/generator.hpp"
+#include "sysy.tab.hpp"
 #include <algorithm>
 #include <cassert>
 #include <memory>
@@ -66,6 +67,16 @@ std::unique_ptr<Value> IRGenerator::visit(const ExprAST& expr) {
             case '*': op = Value::Binary::MUL; break;
             case '/': op = Value::Binary::DIV; break;
             case '%': op = Value::Binary::MOD; break;
+            case '>': op = Value::Binary::GT; break;
+            case '<': op = Value::Binary::LT; break;
+            case T_LE: op = Value::Binary::LE; break;
+            case T_GE: op = Value::Binary::GE; break;
+            case T_EQ: op = Value::Binary::EQ; break;
+            case T_NE: op = Value::Binary::NE; break;
+            case T_LAND: op = Value::Binary::AND; break;
+            case T_LOR: op = Value::Binary::OR; break;
+            
+            
             default:
                 assert(false && "Unsupported binary operator");
         }

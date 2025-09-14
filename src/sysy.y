@@ -45,11 +45,13 @@ extern YYLTYPE yylloc;
 
 // lexer 返回的所有 token 种类的声明
 %token INT RETURN
+%token T_LE T_GE T_EQ T_NE T_LAND T_LOR
 %token <str_val> IDENT
 %token <int_val> INT_CONST
 
 // 非终结符的类型定义
-%type <ast_val> FuncDef FuncType Block Stmt Exp PrimaryExp Number AddExp MulExp UnaryExp
+%type <ast_val> FuncDef FuncType Block Stmt Number 
+%type <ast_val> Exp PrimaryExp AddExp MulExp UnaryExp RelExp EqExp LAndExp LOrExp
 
 %%
 
@@ -114,9 +116,85 @@ Stmt
   }
   ;
 
-// Exp ::= AddExp;
+// Exp ::= LOrExp;
 Exp
+  : LOrExp { $$ = $1; }
+  ;
+
+// LOrExp ::= LAndExp | LOrExp "||" LAndExp;
+LOrExp 
+  : LAndExp { $$ = $1; }
+  | LOrExp T_LOR LAndExp { 
+    auto expr = new BinaryExprAST();
+    expr->op = T_LOR;
+    expr->lhs = std::unique_ptr<ExprAST>(static_cast<ExprAST*>($1));
+    expr->rhs = std::unique_ptr<ExprAST>(static_cast<ExprAST*>($3));
+    $$ = expr; 
+  }
+  ;
+
+// LAndExp ::= EqExp | LAndExp "&&" EqExp;
+LAndExp
+  : EqExp { $$ = $1; }
+  | LAndExp T_LAND EqExp { 
+    auto expr = new BinaryExprAST();
+    expr->op = T_LAND;
+    expr->lhs = std::unique_ptr<ExprAST>(static_cast<ExprAST*>($1));
+    expr->rhs = std::unique_ptr<ExprAST>(static_cast<ExprAST*>($3));
+    $$ = expr; 
+  }
+  ;
+
+// EqExp ::= RelExp | EqExp ("==" | "!=") RelExp;
+EqExp
+  : RelExp { $$ = $1; }
+  | EqExp T_EQ RelExp { 
+    auto expr = new BinaryExprAST();
+    expr->op = T_EQ;
+    expr->lhs = std::unique_ptr<ExprAST>(static_cast<ExprAST*>($1));
+    expr->rhs = std::unique_ptr<ExprAST>(static_cast<ExprAST*>($3));
+    $$ = expr; 
+  }
+  | EqExp T_NE RelExp {
+    auto expr = new BinaryExprAST();
+    expr->op = T_NE;
+    expr->lhs = std::unique_ptr<ExprAST>(static_cast<ExprAST*>($1));
+    expr->rhs = std::unique_ptr<ExprAST>(static_cast<ExprAST*>($3));
+    $$ = expr; 
+   }
+  ;
+
+// RelExp ::= AddExp | RelExp ("<" | ">" | "<=" | ">=") AddExp;
+RelExp
   : AddExp { $$ = $1; }
+  | RelExp '<' AddExp {
+    auto expr = new BinaryExprAST();
+    expr->op = '<';
+    expr->lhs = std::unique_ptr<ExprAST>(static_cast<ExprAST*>($1));
+    expr->rhs = std::unique_ptr<ExprAST>(static_cast<ExprAST*>($3));
+    $$ = expr; 
+   }
+  | RelExp '>' AddExp {
+    auto expr = new BinaryExprAST();
+    expr->op = '>';
+    expr->lhs = std::unique_ptr<ExprAST>(static_cast<ExprAST*>($1));
+    expr->rhs = std::unique_ptr<ExprAST>(static_cast<ExprAST*>($3));
+    $$ = expr; 
+   }
+  | RelExp T_LE AddExp {
+    auto expr = new BinaryExprAST();
+    expr->op = T_LE;
+    expr->lhs = std::unique_ptr<ExprAST>(static_cast<ExprAST*>($1));
+    expr->rhs = std::unique_ptr<ExprAST>(static_cast<ExprAST*>($3));
+    $$ = expr; 
+   }
+  | RelExp T_GE AddExp {
+    auto expr = new BinaryExprAST();
+    expr->op = T_GE;
+    expr->lhs = std::unique_ptr<ExprAST>(static_cast<ExprAST*>($1));
+    expr->rhs = std::unique_ptr<ExprAST>(static_cast<ExprAST*>($3));
+    $$ = expr; 
+   }
   ;
 
 // AddExp ::= MulExp | AddExp ("+" | "-") MulExp;

@@ -92,6 +92,13 @@ void RISCVGenerator::visit(const Value& value, std::ostream& os) {
                 case Value::Binary::MOD:
                     os << "\trem t0, t0, t1\n";
                     break;
+
+                case Value::Binary::AND:
+                    os << "\tand t0, t0, t1\n";
+                    break;
+                case Value::Binary::OR:
+                    os << "\tor t0, t0, t1\n";
+                    break;
                     
                 default:
                     assert(false && "Unspported binary operation");

@@ -29,6 +29,11 @@ const char* op_to_string(Value::Binary::Op op) {
         case Value::Binary::MOD:
             return "mod";
         
+        case Value::Binary::AND:
+            return "and";
+        case Value::Binary::OR:
+            return "or";
+
         default:
             assert(false && "Unsupported op for transforming to string");
             return "";
