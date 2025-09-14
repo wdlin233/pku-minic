@@ -129,6 +129,9 @@ void RISCVGenerator::load_value_to_reg(const Value* val, const std::string& reg,
         using T = std::decay_t<decltype(arg)>;
         if constexpr (std::is_same_v<T, Value::Integer>) {
             os << "\tli " << reg << ", " << arg.value << "\n";
+        } else if constexpr (std::is_same_v<T, Value::SymbolRef>) {
+            // load the referenced value
+            load_value_to_reg(arg.ptr, reg, os);
         } else {
             if (stack_frame.count(val)) {
                 int offset = stack_frame.at(val);

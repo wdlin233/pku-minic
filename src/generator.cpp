@@ -60,6 +60,88 @@ std::unique_ptr<Value> IRGenerator::visit(const ExprAST& expr) {
         auto lhs_val = visit(*binary->lhs);
         auto rhs_val = visit(*binary->rhs);
 
+        if (binary->op == T_LAND) {
+            auto lhs_bool = std::make_unique<Value>(
+                Value::Binary {
+                    Value::Binary::NE,
+                    std::move(lhs_val),
+                    std::make_unique<Value>(Value::Integer{0})
+                }
+            );
+            lhs_bool->name = new_temp_var_name();
+            lhs_bool->type = std::make_unique<Type>();
+            lhs_bool->type->kind = Type::INTEGER;
+            current_bb->insts.push_back(std::move(lhs_bool));
+            auto lhs_ref = current_bb->insts.back().get();
+
+            auto rhs_bool = std::make_unique<Value>(
+                Value::Binary {
+                    Value::Binary::NE,
+                    std::move(rhs_val),
+                    std::make_unique<Value>(Value::Integer{0})
+                }
+            );
+            rhs_bool->name = new_temp_var_name();
+            rhs_bool->type = std::make_unique<Type>();
+            rhs_bool->type->kind = Type::INTEGER;
+            current_bb->insts.push_back(std::move(rhs_bool));
+            auto rhs_ref = current_bb->insts.back().get();
+
+            auto result = std::make_unique<Value>(
+                Value::Binary {
+                    Value::Binary::AND,
+                    std::make_unique<Value>(Value::SymbolRef{lhs_ref}),
+                    std::make_unique<Value>(Value::SymbolRef{rhs_ref})
+                }
+            );
+            result->name = new_temp_var_name();
+            result->type = std::make_unique<Type>();
+            result->type->kind = Type::INTEGER;
+            current_bb->insts.push_back(std::move(result));
+            return std::make_unique<Value>(Value::SymbolRef{current_bb->insts.back().get()});
+        }
+
+        if (binary->op == T_LOR) {
+            auto lhs_bool = std::make_unique<Value>(
+                Value::Binary {
+                    Value::Binary::NE,
+                    std::move(lhs_val),
+                    std::make_unique<Value>(Value::Integer{0})
+                }
+            );
+            lhs_bool->name = new_temp_var_name();
+            lhs_bool->type = std::make_unique<Type>();
+            lhs_bool->type->kind = Type::INTEGER;
+            current_bb->insts.push_back(std::move(lhs_bool));
+            auto lhs_ref = current_bb->insts.back().get();
+
+            auto rhs_bool = std::make_unique<Value>(
+                Value::Binary {
+                    Value::Binary::NE,
+                    std::move(rhs_val),
+                    std::make_unique<Value>(Value::Integer{0})
+                }
+            );
+            rhs_bool->name = new_temp_var_name();
+            rhs_bool->type = std::make_unique<Type>();
+            rhs_bool->type->kind = Type::INTEGER;
+            current_bb->insts.push_back(std::move(rhs_bool));
+            auto rhs_ref = current_bb->insts.back().get();
+
+            auto result = std::make_unique<Value>(
+                Value::Binary {
+                    Value::Binary::OR,
+                    std::make_unique<Value>(Value::SymbolRef{lhs_ref}),
+                    std::make_unique<Value>(Value::SymbolRef{rhs_ref})
+                }
+            );
+            result->name = new_temp_var_name();
+            result->type = std::make_unique<Type>();
+            result->type->kind = Type::INTEGER;
+            current_bb->insts.push_back(std::move(result));
+            return std::make_unique<Value>(Value::SymbolRef{current_bb->insts.back().get()});
+        }
+
         Value::Binary::Op op;
         switch (binary->op) {
             case '+': op = Value::Binary::ADD; break;
@@ -69,13 +151,12 @@ std::unique_ptr<Value> IRGenerator::visit(const ExprAST& expr) {
             case '%': op = Value::Binary::MOD; break;
             case '>': op = Value::Binary::GT; break;
             case '<': op = Value::Binary::LT; break;
+            case '&': op = Value::Binary::AND; break;
+            case '|': op = Value::Binary::OR; break;
             case T_LE: op = Value::Binary::LE; break;
             case T_GE: op = Value::Binary::GE; break;
             case T_EQ: op = Value::Binary::EQ; break;
             case T_NE: op = Value::Binary::NE; break;
-            case T_LAND: op = Value::Binary::AND; break;
-            case T_LOR: op = Value::Binary::OR; break;
-            
             
             default:
                 assert(false && "Unsupported binary operator");

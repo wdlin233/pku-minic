@@ -40,6 +40,7 @@ struct Value {
             EQ, NE, GT, LT, GE, LE,
             ADD, SUB, MUL, DIV, MOD,
             AND, OR, XOR,
+            LAND, LOR,
             SHL, SHR, SAR,
         };
 
