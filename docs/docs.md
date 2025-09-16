@@ -43,6 +43,16 @@ std::unique_ptr<Value> IRGenerator::visit(const NumberAST& number) {
 
 `func->blocks.push_back(std::move(bb))` 以支持后续打印相关的指令.
 
+### IR 和 RISCV 汇编的生成
+
+AST 的解析由 `extern int yyparse(unique_ptr<BaseAST> &ast)` 完成，得到的 AST 再经由类型转换得到 `CompUnitAST* comp_unit_ast`.
+
+`IRGenerator` 会遍历递归 AST 的结构，从中构建 IR 相关的数据结构，例如 `Program`, `Function`, `BasicBlock` 和 `Value` 等.
+
+然后对于 `-koopa`，直接解析 IR 存在内存中的内容，以 Koopa IR 指定的格式输出即可.
+
+对于 `-riscv`，引入 `RISCVGenerator`，在解析 Koopa IR 之外需要做一些分配栈帧和寄存器的操作.
+
 ### 关于添加新的表达式解析
 
 添加新的表达式就是实现新的语法分析，构建其他类型的 AST，然后在生成 IR 时做对应的处理.
