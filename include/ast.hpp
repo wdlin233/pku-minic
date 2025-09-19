@@ -3,13 +3,11 @@
 #include <string>
 #include <memory>
 #include <iostream>
+#include <vector>
 
 class BaseAST {
     public:
         virtual ~BaseAST() = default;
-
-        // operator << 也可行
-        virtual void Dump() const = 0;
 };
 
 class FuncDefAST;
@@ -21,7 +19,6 @@ class NumberAST;
 class CompUnitAST : public BaseAST {
     public:
         std::unique_ptr<FuncDefAST> func_def;
-        void Dump() const override;
 };
 
 class FuncDefAST : public BaseAST {
@@ -29,8 +26,6 @@ class FuncDefAST : public BaseAST {
         std::unique_ptr<FuncTypeAST> func_type;
         std::string ident;
         std::unique_ptr<BlockAST> block;
-
-        void Dump() const override;
 };
 
 class FuncTypeAST : public BaseAST {
@@ -39,26 +34,15 @@ class FuncTypeAST : public BaseAST {
             TYPE_INT
         };
         Type type;
-        explicit FuncTypeAST(Type t);
-
-        void Dump() const override;
+        explicit FuncTypeAST(Type t) : type(t) {};
     };
-
-class BlockAST : public BaseAST {
-    public:
-        std::unique_ptr<StmtAST> stmt;
-
-        void Dump() const override;
-};
 
 class ExprAST : public BaseAST {};
 
 class NumberAST : public ExprAST {
     public:
         int val;
-        explicit NumberAST(int val);
-
-        void Dump() const override;
+        explicit NumberAST(int val) : val(val) {};
 };
 
 class BinaryExprAST : public ExprAST {
@@ -66,8 +50,6 @@ class BinaryExprAST : public ExprAST {
         int op;     // avoid implicit conversion from int(%token symbol) to char
         std::unique_ptr<ExprAST> lhs;
         std::unique_ptr<ExprAST> rhs;
-
-        void Dump() const override;
 };
 
 // UnaryOp and UnaryExpr
@@ -75,13 +57,36 @@ class UnaryExprAST : public ExprAST {
     public:
         char op;
         std::unique_ptr<ExprAST> operand;
-
-        void Dump() const override;
 };
 
-class StmtAST : public BaseAST {
+class BlockItemAST : public BaseAST {};
+
+class BlockAST : public BaseAST {
+    public:
+        std::vector<std::unique_ptr<BlockItemAST>> items;
+};
+
+class StmtAST : public BlockItemAST {
     public:
         std::unique_ptr<ExprAST> expression;
+};
 
-        void Dump() const override;
+class DeclAST : public BlockItemAST {};
+
+// ConstDef ::= IDENT "=" ConstInitVal;
+class ConstDefAST : public BaseAST {
+    public:
+        std::string ident;
+        std::unique_ptr<ExprAST> init_val;    
+};
+
+class ConstDeclAST : public DeclAST {
+    public:
+        // BType btype; int only now ignoring
+        std::vector<std::unique_ptr<ConstDefAST>> const_defs;
+};
+
+class LValAST : public ExprAST {
+    public:
+        std::string ident;
 };
