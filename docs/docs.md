@@ -209,3 +209,76 @@ fun @main(): i32 {
     ret %4
 }
 ```
+
+### 设计新的 AST
+
+考虑如下语法规范：
+
+```ebnf
+Decl          ::= ConstDecl;
+ConstDecl     ::= "const" BType ConstDef {"," ConstDef} ";";
+BType         ::= "int";
+ConstDef      ::= IDENT "=" ConstInitVal;
+ConstInitVal  ::= ConstExp;
+
+Block         ::= "{" {BlockItem} "}";
+BlockItem     ::= Decl | Stmt;
+
+ConstExp      ::= Exp;
+```
+
+`BlockItem` 是最顶层的，以 `Block` 的成员 `std::vector<std::unique_ptr<BlockItemAST>> items;` 存储. `Decl` 和 `Stmt` 来自 `BlockItem`，AST 也继承 `BlockItemAST`.
+
+`ConstDef` 推导出终结符，可以直接继承 `BaseAST`. 而 `ConstDecl` 由非终结符 `Decl` 推导而来，继承 `DeclAST`.
+
+问 `ConstInitVal` 怎么处理，由于其产生式的右侧都很固定，最后得到的是 `Exp`，在一定程度上简化可以直接在 `ConstDefAST` 中存下 `ExprAST`.
+
+### Bison 生命周期管理
+
+`std::vector` 是一个复杂的类，由自己的构造函数、析构函数和拷贝/移动操作，所以不能直接放入 `union` 中，可以使用裸指针. 然后在 Bison 的动作代码中手动 `new` 和 `delete` 它.
+
+一个很自然的问题是，为什么 `BaseAST *ast_val` 和 `std::string *str_val` 不需要手动 `delete` 呢？
+
+实际上 Bison 有两种生命周期管理机制：
+
+- Bison `%destructor` 自动清理：当一个符号（token 或 non-terminal）被移出解析栈且不再需要时，Bison 会调用为该符号类型定义的 `%destructor`. 默认的析构器会尝试 delete 指针.
+- 手动管理：例如使用 `unique_ptr` 接管，或者手动调用 `delete`.
+
+目前来说，`std::string` 以 `new string()` 生成，然后其所有权转移给 `unqiue_ptr<string()>.` `BASEAST` 也是类似的.
+
+内存管理的责任都被委托到 `std::unique_ptr` 和 RAII 机制中.
+
+### 遍历 AST 时计算 ConstExp
+
+在遇到常量声明语句时, 你应该遍历 AST, 直接算出语句右侧的 `ConstExp` 的值, 得到一个 32 位整数, 然后把这个常量定义插入到符号表中.
+
+根据 C 语言的语义要求，`const` 变量的初始化表达式必须是编译时常量. 而且在生成 IR 时计算也会导致效率问题.
+
+```c
+// 错误的做法
+const int x = 1 + 2 * 3 - 4;
+%0 = add 1, 6    // 2 * 3 = 6
+%1 = sub %0, 4   // 7 - 4 = 3
+```
+
+所以应当是：
+
+```c
+// 正确的做法：编译时求值
+const int x = 1 + 2 * 3 - 4;
+// 符号表：symbol_table["x"] = 3
+// 后续使用x时，直接替换为3
+return x;  // 生成IR: ret 3
+```
+
+通过对左值的访问：
+
+```cpp
+if (auto lval = dynamic_cast<const LValAST*>(&expr)) {
+    assert(symbol_table.count(lval->ident) && "Undefined constant variable");
+    int const_val = symbol_table.at(lval->ident);
+
+    return std::make_unique<Value>(Value::Integer{const_val});
+}
+```
+

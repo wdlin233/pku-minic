@@ -35,23 +35,29 @@ extern YYLTYPE yylloc;
   std::string *str_val;
   int int_val;
   BaseAST *ast_val;
+  std::vector<std::unique_ptr<ConstDefAST>> *vec_defs;
+  std::vector<std::unique_ptr<BlockItemAST>> *vec_items;
 }
 
 %locations
 
 // lexer 返回的所有 token 种类的声明
-%token INT RETURN
+%token INT RETURN CONST
 %token T_LE T_GE T_EQ T_NE T_LAND T_LOR
 %token <str_val> IDENT
 %token <int_val> INT_CONST
 
 // 非终结符的类型定义
-%type <ast_val> FuncDef FuncType Block Stmt Number 
+%type <ast_val> FuncDef FuncType Block Stmt BlockItem Number 
 %type <ast_val> Exp PrimaryExp AddExp MulExp UnaryExp RelExp EqExp LAndExp LOrExp
+%type <ast_val> Decl ConstDecl ConstDef LVal ConstInitVal ConstExp
+%type <vec_defs> ConstDefList
+%type <vec_items> BlockItemList
 
 %%
 
 // 此处的 ast 是 yyparse 函数的参数，在 %parse-param 中定义了其为 std::unique_ptr
+// CompUnit ::= FuncDef;
 CompUnit
   : FuncDef {
     auto comp_unit = make_unique<CompUnitAST>();
@@ -60,6 +66,7 @@ CompUnit
   }
   ;
 
+// FuncDef ::= FuncType IDENT "(" ")" Block;
 FuncDef
   : FuncType IDENT '(' ')' Block {
     auto ast = new FuncDefAST();
@@ -70,20 +77,112 @@ FuncDef
   }
   ;
 
+// FuncType ::= "int";
 FuncType
   : INT {
     $$ = new FuncTypeAST(FuncTypeAST::Type::TYPE_INT);
   }
   ;
 
+// Block ::= "{" {BlockItem} "}";
 Block
-  : '{' Stmt '}' {
+  : '{' BlockItemList '}' {
     auto ast = new BlockAST();
-    ast->stmt = unique_ptr<StmtAST>(static_cast<StmtAST*>($2));
+    ast->items = std::move(*$2);
+    delete $2;
+    $$ = ast;
+  }
+  | '{' '}' {
+    $$ = new BlockAST();
+  }
+  ;
+
+BlockItemList
+  : BlockItem {
+    auto list = new std::vector<std::unique_ptr<BlockItemAST>>();
+    list->push_back(std::unique_ptr<BlockItemAST>(static_cast<BlockItemAST*>($1)));
+    $$ = list; 
+  }
+  | BlockItemList BlockItem {
+    $1->push_back(std::unique_ptr<BlockItemAST>(static_cast<BlockItemAST*>($2)));
+    $$ = $1; 
+  }
+  ;
+
+// BlockItem ::= Decl | Stmt;
+BlockItem
+  : Decl { $$ = $1; }
+  | Stmt { $$ = $1; }
+  ;
+
+// Decl ::= ConstDecl;
+Decl
+  : ConstDecl { $$ = $1; }
+  ;
+
+// ConstDecl ::= "const" BType ConstDef {"," ConstDef} ";";
+ConstDecl 
+  : CONST BType ConstDefList ';' {
+    auto ast = new ConstDeclAST();
+    ast->const_defs = std::move(*$3);
+    delete $3;
     $$ = ast;
   }
   ;
 
+BType 
+  : INT {}
+  ;
+
+ConstDefList 
+  : ConstDef {
+    auto list = new std::vector<std::unique_ptr<ConstDefAST>>();
+    list->push_back(std::unique_ptr<ConstDefAST>(static_cast<ConstDefAST*>($1)));
+    $$ = list; 
+  }
+  | ConstDefList ',' ConstDef {
+    $1->push_back(std::unique_ptr<ConstDefAST>(static_cast<ConstDefAST*>($3)));
+    $$ = $1; 
+  }
+  ;
+
+// ConstDef ::= IDENT "=" ConstInitVal;
+ConstDef
+  : IDENT '=' ConstInitVal {
+    auto ast = new ConstDefAST();
+    ast->ident = *unique_ptr<string>($1);
+    ast->init_val = unique_ptr<ExprAST>(static_cast<ExprAST*>($3));
+    $$ = ast;
+  }
+  ;
+
+// ConstInitVal ::= ConstExp;
+ConstInitVal
+  : ConstExp { $$ = $1; }
+  ;
+
+// ConstExp ::= Exp;
+ConstExp
+  : Exp { $$ = $1; }
+  ;
+
+// PrimaryExp ::= "(" Exp ")" | LVal | Number;
+PrimaryExp
+  : '(' Exp ')' { $$ = $2; }
+  | LVal        { $$ = $1; }
+  | Number      { $$ = $1; }
+  ;
+
+// LVal ::= IDENT;
+LVal
+  : IDENT {
+    auto ast = new LValAST();
+    ast->ident = *unique_ptr<string>($1);
+    $$ = ast;
+  }
+  ;
+
+// Stmt ::= LVal "=" Exp ";" | "return" Exp ";";
 Stmt
   : RETURN Exp ';' {
     auto ast = new StmtAST();
@@ -239,12 +338,6 @@ UnaryExp
     expr->operand = std::unique_ptr<ExprAST>(static_cast<ExprAST*>($2));
     $$ = expr;
   }
-  ;
-
-// PrimaryExp  ::= "(" Exp ")" | Number;
-PrimaryExp
-  : '(' Exp ')' { $$ = $2; }
-  | Number      { $$ = $1; }
   ;
 
 Number

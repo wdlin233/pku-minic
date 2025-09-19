@@ -25,10 +25,94 @@ void IRGenerator::visit(const FuncDefAST& func_def) {
     current_function = func.get();
     current_bb = bb.get();
 
-    visit(*func_def.block->stmt);
-
+    for (const auto& item: func_def.block->items) {
+        visit(*item);
+    }
+    
     func->blocks.push_back(std::move(bb)); // push basic block into basic blocks
     program->functions.push_back(std::move(func));
+}
+
+void IRGenerator::visit(const BlockItemAST& item) {
+    if (auto stmt = dynamic_cast<const StmtAST*>(&item)) {
+        visit(*stmt);
+        return;
+    }
+
+    if (auto decl = dynamic_cast<const DeclAST*>(&item)) {
+        visit(*decl);
+        return;
+    }
+
+    assert(false && "Unknown BlockItem type");
+}
+
+void IRGenerator::visit(const DeclAST& decl) {
+    if (auto const_decl = dynamic_cast<const ConstDeclAST*>(&decl)) {
+        visit(*const_decl);
+        return;
+    }
+}
+
+void IRGenerator::visit(const ConstDeclAST& const_decl) {
+    for (const auto& def: const_decl.const_defs) {
+        int const_value = evaluate_const_expr(*def->init_val);
+        symbol_table[def->ident] = const_value;
+    }
+}
+
+int IRGenerator::evaluate_const_expr(const ExprAST& expr) {
+    if (auto number = dynamic_cast<const NumberAST*>(&expr)) {
+        return number->val;
+    }
+    
+    if (auto binary = dynamic_cast<const BinaryExprAST*>(&expr)) {
+        int lhs_val = evaluate_const_expr(*binary->lhs);
+        int rhs_val = evaluate_const_expr(*binary->rhs);
+        
+        switch (binary->op) {
+            case '+': return lhs_val + rhs_val;
+            case '-': return lhs_val - rhs_val;
+            case '*': return lhs_val * rhs_val;
+            case '/': return lhs_val / rhs_val;
+            case '%': return lhs_val % rhs_val;
+            case '>': return lhs_val > rhs_val ? 1 : 0;
+            case '<': return lhs_val < rhs_val ? 1 : 0;
+            case '&': return lhs_val & rhs_val;
+            case '|': return lhs_val | rhs_val;
+            case T_LE: return lhs_val <= rhs_val ? 1 : 0;
+            case T_GE: return lhs_val >= rhs_val ? 1 : 0;
+            case T_EQ: return lhs_val == rhs_val ? 1 : 0;
+            case T_NE: return lhs_val != rhs_val ? 1 : 0;
+            case T_LAND: return (lhs_val != 0 && rhs_val != 0) ? 1 : 0;
+            case T_LOR: return (lhs_val != 0 || rhs_val != 0) ? 1 : 0;
+            default:
+                assert(false && "Unsupported binary operator in constant expression");
+        }
+    }
+    
+    if (auto unary = dynamic_cast<const UnaryExprAST*>(&expr)) {
+        int operand_val = evaluate_const_expr(*unary->operand);
+        
+        switch (unary->op) {
+            case '+': return operand_val;
+            case '-': return -operand_val;
+            case '!': return operand_val == 0 ? 1 : 0;
+            default:
+                assert(false && "Unsupported unary operator in constant expression");
+        }
+    }
+    
+    if (auto lval = dynamic_cast<const LValAST*>(&expr)) {
+        auto it = symbol_table.find(lval->ident);
+        if (it != symbol_table.end()) {
+            return it->second;
+        }
+        assert(false && "Undefined constant identifier");
+    }
+    
+    assert(false && "Unsupported expression type in constant expression");
+    return 0;
 }
 
 void IRGenerator::visit(const StmtAST& stmt) {
@@ -225,6 +309,13 @@ std::unique_ptr<Value> IRGenerator::visit(const ExprAST& expr) {
                 
             
         }
+    }
+
+    if (auto lval = dynamic_cast<const LValAST*>(&expr)) {
+        assert(symbol_table.count(lval->ident) && "Undefined constant variable");
+        int const_val = symbol_table.at(lval->ident);
+
+        return std::make_unique<Value>(Value::Integer{const_val});
     }
     
     assert(false && "Unknown expression type");
