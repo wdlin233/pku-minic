@@ -116,15 +116,25 @@ int IRGenerator::evaluate_const_expr(const ExprAST& expr) {
 }
 
 void IRGenerator::visit(const StmtAST& stmt) {
-    auto ret_val = visit(*stmt.expression);
+    switch (stmt.type) {
+        case StmtAST::ASSIGN: {
+            auto rval = evaluate_const_expr(*stmt.expression);
+            symbol_table[stmt.lval->ident] = rval;
+            break;
+        }
+        case StmtAST::RETURN: {
+            auto ret_val = visit(*stmt.expression);
 
-    auto ret_inst = std::make_unique<Value>(
-        Value::Return{ std::move(ret_val) }
-    );
-    ret_inst->type = std::make_unique<Type>();
-    ret_inst->type->kind = Type::INTEGER;
+            auto ret_inst = std::make_unique<Value>(
+                Value::Return{ std::move(ret_val) }
+            );
+            ret_inst->type = std::make_unique<Type>();
+            ret_inst->type->kind = Type::INTEGER;
 
-    current_bb->insts.push_back(std::move(ret_inst));
+            current_bb->insts.push_back(std::move(ret_inst));
+            break;
+        }
+    }
 }
 
 // UnaryExp ::= PrimaryExp | UnaryOp UnaryExp;

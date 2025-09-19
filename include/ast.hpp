@@ -15,6 +15,7 @@ class FuncTypeAST;
 class BlockAST;
 class StmtAST;
 class NumberAST;
+class LValAST;
 
 class CompUnitAST : public BaseAST {
     public:
@@ -68,7 +69,17 @@ class BlockAST : public BaseAST {
 
 class StmtAST : public BlockItemAST {
     public:
+        // 如果无法判断类型，就用 enum 和一个对应值存储
+        enum StmtType {
+            ASSIGN,
+            RETURN
+        };
+
+        StmtType type;
+        std::unique_ptr<LValAST> lval;
         std::unique_ptr<ExprAST> expression;
+
+        StmtAST(StmtType t) : type(t) {}
 };
 
 class DeclAST : public BlockItemAST {};

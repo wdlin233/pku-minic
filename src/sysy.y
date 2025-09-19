@@ -184,8 +184,14 @@ LVal
 
 // Stmt ::= LVal "=" Exp ";" | "return" Exp ";";
 Stmt
-  : RETURN Exp ';' {
-    auto ast = new StmtAST();
+  : LVal '=' Exp ';' {
+    auto ast = new StmtAST(StmtAST::ASSIGN);
+    ast->lval = unique_ptr<LValAST>(static_cast<LValAST*>($1));
+    ast->expression = unique_ptr<ExprAST>(static_cast<ExprAST*>($3));
+    $$ = ast;
+  }
+  | RETURN Exp ';' {
+    auto ast = new StmtAST(StmtAST::RETURN);
     ast->expression = unique_ptr<ExprAST>(static_cast<ExprAST*>($2));
     $$ = ast;
   }
