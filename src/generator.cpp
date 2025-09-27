@@ -57,7 +57,20 @@ void IRGenerator::visit(const DeclAST& decl) {
 void IRGenerator::visit(const ConstDeclAST& const_decl) {
     for (const auto& def: const_decl.const_defs) {
         int const_value = evaluate_const_expr(*def->init_val);
-        symbol_table[def->ident] = const_value;
+        symbol_table[def->ident] = std::make_unique<Value>(const_value);
+    }
+}
+
+void IRGenerator::visit(const VarDeclAST& var_decl) {
+    for (const auto& var_def : var_decl.var_defs) {
+        if (var_def->init_val.has_value()) {
+            auto init_val = visit(*var_def->init_val.value());
+            symbol_table[var_def->ident] = std::move(init_val);
+        } else {
+            symbol_table[var_def->ident] = 0;
+        }
+        
+        
     }
 }
 
@@ -106,7 +119,7 @@ int IRGenerator::evaluate_const_expr(const ExprAST& expr) {
     if (auto lval = dynamic_cast<const LValAST*>(&expr)) {
         auto it = symbol_table.find(lval->ident);
         if (it != symbol_table.end()) {
-            return it->second;
+            return it->second->get_int_value();
         }
         assert(false && "Undefined constant identifier");
     }
@@ -119,7 +132,7 @@ void IRGenerator::visit(const StmtAST& stmt) {
     switch (stmt.type) {
         case StmtAST::ASSIGN: {
             auto rval = evaluate_const_expr(*stmt.expression);
-            symbol_table[stmt.lval->ident] = rval;
+            symbol_table[stmt.lval->ident] = std::make_unique<Value>(rval);
             break;
         }
         case StmtAST::RETURN: {
@@ -323,7 +336,7 @@ std::unique_ptr<Value> IRGenerator::visit(const ExprAST& expr) {
 
     if (auto lval = dynamic_cast<const LValAST*>(&expr)) {
         assert(symbol_table.count(lval->ident) && "Undefined constant variable");
-        int const_val = symbol_table.at(lval->ident);
+        int const_val = symbol_table.at(lval->ident)->get_int_value();
 
         return std::make_unique<Value>(Value::Integer{const_val});
     }

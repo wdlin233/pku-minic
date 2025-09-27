@@ -1,6 +1,7 @@
 %code requires {
   #include <memory>
   #include <string>
+  #include <optional>
   #include "ast.hpp"
 }
 
@@ -9,6 +10,7 @@
 #include <iostream>
 #include <memory>
 #include <string>
+#include <optional>
 #include "ast.hpp"
 #include "sysy.tab.hpp"
 
@@ -37,6 +39,7 @@ extern YYLTYPE yylloc;
   BaseAST *ast_val;
   std::vector<std::unique_ptr<ConstDefAST>> *vec_defs;
   std::vector<std::unique_ptr<BlockItemAST>> *vec_items;
+  std::vector<std::unique_ptr<VarDefAST>> *vec_var_defs;
 }
 
 %locations
@@ -50,9 +53,10 @@ extern YYLTYPE yylloc;
 // 非终结符的类型定义
 %type <ast_val> FuncDef FuncType Block Stmt BlockItem Number 
 %type <ast_val> Exp PrimaryExp AddExp MulExp UnaryExp RelExp EqExp LAndExp LOrExp
-%type <ast_val> Decl ConstDecl ConstDef LVal ConstInitVal ConstExp
+%type <ast_val> Decl ConstDecl ConstDef ConstInitVal VarDecl VarDef InitVal LVal ConstExp
 %type <vec_defs> ConstDefList
 %type <vec_items> BlockItemList
+%type <vec_var_defs> VarDefList
 
 %%
 
@@ -115,9 +119,10 @@ BlockItem
   | Stmt { $$ = $1; }
   ;
 
-// Decl ::= ConstDecl;
+// Decl ::= ConstDecl | VarDecl;
 Decl
   : ConstDecl { $$ = $1; }
+  | VarDecl { $$ = $1; }
   ;
 
 // ConstDecl ::= "const" BType ConstDef {"," ConstDef} ";";
@@ -163,6 +168,49 @@ ConstInitVal
 
 // ConstExp ::= Exp;
 ConstExp
+  : Exp { $$ = $1; }
+  ;
+
+// VarDecl ::= BType VarDef {"," VarDef} ";";
+VarDecl
+  : BType VarDefList ';' {
+    auto ast = new VarDeclAST();
+    ast->var_defs = std::move(*$2);
+    delete $2;
+    $$ = ast;
+  }
+  ;
+
+VarDefList
+  : VarDef {
+    auto list = new std::vector<std::unique_ptr<VarDefAST>>();
+    list->push_back(std::unique_ptr<VarDefAST>(static_cast<VarDefAST*>($1)));
+    $$ = list;
+  }
+  | VarDefList ',' VarDef {
+    $1->push_back(std::unique_ptr<VarDefAST>(static_cast<VarDefAST*>($3)));
+    $$ = $1;
+  }
+  ;
+
+// VarDef ::= IDENT | IDENT "=" InitVal;
+VarDef 
+  : IDENT {
+    auto ast = new VarDefAST();
+    ast->ident = *unique_ptr<string>($1);
+    ast->init_val = std::nullopt;
+    $$ = ast;
+  }
+  | IDENT '=' InitVal {
+    auto ast = new VarDefAST();
+    ast->ident = *unique_ptr<string>($1);
+    ast->init_val = make_optional<std::unique_ptr<ExprAST>>(static_cast<ExprAST*>($3));
+    $$ = ast;
+  }
+  ;
+
+// InitVal ::= Exp;
+InitVal
   : Exp { $$ = $1; }
   ;
 

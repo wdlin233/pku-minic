@@ -1,5 +1,6 @@
 #pragma once
 
+#include <cassert>
 #include <cstdint>
 #include <iostream>
 #include <memory>
@@ -66,6 +67,15 @@ struct Value {
     Value(Return ret) : kind(std::move(ret)) {}
     Value(Binary binary) : kind(std::move(binary)) {}
     Value(SymbolRef ref) : kind(ref) {}
+
+    explicit Value(int val) : kind(Integer{val}) {
+        type = std::make_unique<Type>();
+        type->kind = Type::INTEGER;
+    }
+    int get_int_value() const {
+        assert(std::holds_alternative<Integer>(kind) && "Not an integer value");
+        return std::get<Integer>(kind).value;
+    } 
 
     void Dump(std::ostream& os) const;
 };

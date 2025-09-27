@@ -4,6 +4,7 @@
 #include <memory>
 #include <iostream>
 #include <vector>
+#include <optional>
 
 class BaseAST {
     public:
@@ -16,6 +17,8 @@ class BlockAST;
 class StmtAST;
 class NumberAST;
 class LValAST;
+class ConstDefAST;
+class VarDefAST;
 
 class CompUnitAST : public BaseAST {
     public:
@@ -84,6 +87,13 @@ class StmtAST : public BlockItemAST {
 
 class DeclAST : public BlockItemAST {};
 
+// ConstDecl ::= "const" BType ConstDef {"," ConstDef} ";";
+class ConstDeclAST : public DeclAST {
+    public:
+        // BType btype; int only now ignoring
+        std::vector<std::unique_ptr<ConstDefAST>> const_defs;
+};
+
 // ConstDef ::= IDENT "=" ConstInitVal;
 class ConstDefAST : public BaseAST {
     public:
@@ -91,10 +101,17 @@ class ConstDefAST : public BaseAST {
         std::unique_ptr<ExprAST> init_val;    
 };
 
-class ConstDeclAST : public DeclAST {
+// VarDecl ::= BType VarDef {"," VarDef} ";";
+class VarDeclAST : public DeclAST {
     public:
-        // BType btype; int only now ignoring
-        std::vector<std::unique_ptr<ConstDefAST>> const_defs;
+        std::vector<std::unique_ptr<VarDefAST>> var_defs;
+};
+
+// VarDef ::= IDENT | IDENT "=" InitVal;
+class VarDefAST : public BaseAST {
+    public:
+        std::string ident;
+        std::optional<std::unique_ptr<ExprAST>> init_val;
 };
 
 class LValAST : public ExprAST {

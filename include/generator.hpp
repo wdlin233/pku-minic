@@ -13,15 +13,16 @@ class IRGenerator {
         void visit(const StmtAST& stmt);
         void visit(const DeclAST& decl);
         void visit(const ConstDeclAST& const_decl);
+        void visit(const VarDeclAST& var_decl);
 
         std::unique_ptr<Value> visit(const ExprAST& number);
 
-        std::unique_ptr<Program> program;
         Function* current_function = nullptr;
+        std::unique_ptr<Program> program;
         BasicBlock* current_bb = nullptr;
         int temp_var_counter = 0;
 
-        std::unordered_map<std::string, int> symbol_table;
+        std::unordered_map<std::string, std::unique_ptr<Value>> symbol_table;
 
         std::string new_temp_var_name() {
             return "%" + std::to_string(temp_var_counter++);
