@@ -52,21 +52,34 @@ struct Value {
     };
 
     struct SymbolRef {
-        Value* ptr;
+        const Value* ptr;
+    };
+
+    struct Alloc { /* type info in Value::type*/ };
+    struct Load { const Value* ptr; };
+    struct Store {
+        std::unique_ptr<Value> value;
+        const Value* dest;
     };
 
     using Kind = std::variant<
         Integer,
         Return,
         Binary,
-        SymbolRef
+        SymbolRef,
+        Alloc,
+        Load,
+        Store
     >;
     Kind kind;
 
     Value(Integer integer) : kind(std::move(integer)) {}
     Value(Return ret) : kind(std::move(ret)) {}
     Value(Binary binary) : kind(std::move(binary)) {}
-    Value(SymbolRef ref) : kind(ref) {}
+    Value(SymbolRef ref) : kind(std::move(ref)) {}
+    Value(Alloc alloc) : kind(std::move(alloc)) {}
+    Value(Load load) : kind(std::move(load)) {}
+    Value(Store store) : kind(std::move(store)) {}
 
     explicit Value(int val) : kind(Integer{val}) {
         type = std::make_unique<Type>();

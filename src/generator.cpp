@@ -5,6 +5,7 @@
 #include <memory>
 #include <ostream>
 #include <type_traits>
+#include <utility>
 #include <variant>
 
 std::unique_ptr<Program> IRGenerator::Generate(const CompUnitAST& ast) {
@@ -52,25 +53,43 @@ void IRGenerator::visit(const DeclAST& decl) {
         visit(*const_decl);
         return;
     }
+    if (auto var_decl = dynamic_cast<const VarDeclAST*>(&decl)) {
+        visit(*var_decl);
+        return;
+    }
 }
 
 void IRGenerator::visit(const ConstDeclAST& const_decl) {
     for (const auto& def: const_decl.const_defs) {
         int const_value = evaluate_const_expr(*def->init_val);
-        symbol_table[def->ident] = std::make_unique<Value>(const_value);
+        
+        SymbolInfo info;
+        info.kind = const_value;
+        symbol_table[def->ident] = info;
     }
 }
 
 void IRGenerator::visit(const VarDeclAST& var_decl) {
     for (const auto& var_def : var_decl.var_defs) {
+        auto alloc_inst = std::make_unique<Value>(Value::Alloc{});
+        alloc_inst->name = "@" + var_def->ident;  // @x = alloc i32
+        alloc_inst->type = std::make_unique<Type>();
+        alloc_inst->type->kind = Type::INTEGER;
+
+        const Value* var_ptr = alloc_inst.get();
+        current_bb->insts.push_back(std::move(alloc_inst));
+
+        SymbolInfo info;
+        info.kind = var_ptr;
+        symbol_table[var_def->ident] = info;
+
         if (var_def->init_val.has_value()) {
             auto init_val = visit(*var_def->init_val.value());
-            symbol_table[var_def->ident] = std::move(init_val);
-        } else {
-            symbol_table[var_def->ident] = 0;
+            auto store_inst = std::make_unique<Value>(
+                Value::Store{std::move(init_val), var_ptr}
+            );
+            current_bb->insts.push_back(std::move(store_inst));
         }
-        
-        
     }
 }
 
@@ -118,10 +137,19 @@ int IRGenerator::evaluate_const_expr(const ExprAST& expr) {
     
     if (auto lval = dynamic_cast<const LValAST*>(&expr)) {
         auto it = symbol_table.find(lval->ident);
-        if (it != symbol_table.end()) {
-            return it->second->get_int_value();
+        if (it == symbol_table.end()) {
+            std::cerr << "Semantic Error: Use of undefined identifier '" << lval->ident << "' in a constant expression." << std::endl;
+            exit(1);
         }
-        assert(false && "Undefined constant identifier");
+        
+        const SymbolInfo& info = it->second;
+        if (std::holds_alternative<int>(info.kind)) {
+            return std::get<int>(info.kind);
+        } else {
+            // 在进行常量求值时, 从符号表里查询到了变量而不是常量.
+            std::cerr << "Semantic Error: Variable '" << lval->ident << "' cannot be used in a constant expression." << std::endl;
+            exit(1);
+        }
     }
     
     assert(false && "Unsupported expression type in constant expression");
@@ -131,9 +159,28 @@ int IRGenerator::evaluate_const_expr(const ExprAST& expr) {
 void IRGenerator::visit(const StmtAST& stmt) {
     switch (stmt.type) {
         case StmtAST::ASSIGN: {
-            auto rval = evaluate_const_expr(*stmt.expression);
-            symbol_table[stmt.lval->ident] = std::make_unique<Value>(rval);
+            auto it = symbol_table.find(stmt.lval->ident);
+            if (it == symbol_table.end()) {
+                std::cerr << "Semantic Error: Undefined identifier '" << stmt.lval->ident << "'" << std::endl;
+                exit(1);
+            }
+
+            const SymbolInfo& info = it->second;
+            if (std::holds_alternative<int>(info.kind)) {
+                // 在处理赋值语句时, 赋值语句左侧的 LVal 对应一个常量, 而不是变量.
+                std::cerr << "Semantic Error: Cannot assign to constant '" << stmt.lval->ident << "'" << std::endl;
+                exit(1);
+            } else {
+                // variable
+                const Value* var_ptr = std::get<const Value*>(info.kind);
+                auto rval = visit(*stmt.expression);
+                auto store_inst = std::make_unique<Value>(
+                    Value::Store{std::move(rval), var_ptr}
+                );
+                current_bb->insts.push_back(std::move(store_inst));
+            }
             break;
+
         }
         case StmtAST::RETURN: {
             auto ret_val = visit(*stmt.expression);
@@ -336,9 +383,26 @@ std::unique_ptr<Value> IRGenerator::visit(const ExprAST& expr) {
 
     if (auto lval = dynamic_cast<const LValAST*>(&expr)) {
         assert(symbol_table.count(lval->ident) && "Undefined constant variable");
-        int const_val = symbol_table.at(lval->ident)->get_int_value();
+        const SymbolInfo& info = symbol_table.at(lval->ident);
 
-        return std::make_unique<Value>(Value::Integer{const_val});
+        if (std::holds_alternative<int>(info.kind)) {
+            // constant
+            int const_val = std::get<int>(info.kind);
+            return std::make_unique<Value>(Value::Integer{const_val});
+        } else {
+            // variable
+            const Value* var_ptr = std::get<const Value*>(info.kind);
+            auto load_inst = std::make_unique<Value>(Value::Load{var_ptr});
+            load_inst->name = new_temp_var_name();
+            load_inst->type = std::make_unique<Type>();
+            load_inst->type->kind = Type::INTEGER;
+
+            const Value* result_ptr = load_inst.get();
+            current_bb->insts.push_back(std::move(load_inst));
+            
+            return std::make_unique<Value>(Value::SymbolRef{result_ptr});
+        }
+
     }
     
     assert(false && "Unknown expression type");

@@ -3,6 +3,15 @@
 #include <memory>
 #include <string>
 #include <unordered_map>
+#include <variant>
+
+struct SymbolInfo {
+    // for constant storing its int value
+    // for variable storing raw pointer
+    std::variant<int, const Value*> kind;
+};
+
+using SymbolTable = std::unordered_map<std::string, SymbolInfo>;
 
 class IRGenerator {
     public:
@@ -22,7 +31,7 @@ class IRGenerator {
         BasicBlock* current_bb = nullptr;
         int temp_var_counter = 0;
 
-        std::unordered_map<std::string, std::unique_ptr<Value>> symbol_table;
+        SymbolTable symbol_table;
 
         std::string new_temp_var_name() {
             return "%" + std::to_string(temp_var_counter++);

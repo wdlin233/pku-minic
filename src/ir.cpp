@@ -66,7 +66,13 @@ void BasicBlock::Dump(std::ostream& os) const {
 
 void Value::Dump(std::ostream& os) const {
     // check `kind` type, making `name` output
-    if (!name.empty() && !std::holds_alternative<Return>(kind) && !std::holds_alternative<Integer>(kind)) {
+    if (!name.empty() && 
+        (
+            std::holds_alternative<Binary>(kind) ||
+            std::holds_alternative<Alloc>(kind) ||
+            std::holds_alternative<Load>(kind)
+        )
+    ) {
         os << name << " = ";
     }
 
@@ -97,6 +103,14 @@ void Value::Dump(std::ostream& os) const {
             }
         } else if constexpr (std::is_same_v<T, SymbolRef>) {
             os << arg.ptr->name;
+        } else if constexpr (std::is_same_v<T, Alloc>) {
+            os << "alloc i32";
+        } else if constexpr (std::is_same_v<T, Load>) {
+            os << "load " << arg.ptr->name; 
+        } else if constexpr (std::is_same_v<T, Store>) {
+            os << "store ";
+            arg.value->Dump(os);
+            os << " ," << arg.dest->name;
         }
     }, kind);
 }
