@@ -18,8 +18,14 @@ void RISCVGenerator::visit(const Function& func, std::ostream& os) {
     
     os << func.name.substr(1) << ":\n";
     
+    // Prologue
     if (current_stask_offset < 0) {
-        os << "\taddi sp, sp, " << current_stask_offset << "\n";
+        if (current_stask_offset >= -2048) {
+            os << "\taddi sp, sp, " << current_stask_offset << "\n";
+        } else {
+            os << "\tli t2, " << current_stask_offset << "\n";
+            os << "\tadd sp, sp, t2\n";
+        }
     }
 
     for (const auto& bb_ptr : func.blocks) {
@@ -44,8 +50,16 @@ void RISCVGenerator::visit(const Value& value, std::ostream& os) {
             if (arg.value) {
                 load_value_to_reg(arg.value.get(), "a0", os);
             }
+            // Epilogue
             if (current_stask_offset < 0) {
-                os << "\taddi sp, sp, " << -current_stask_offset << "\n";
+                int stack_size = -current_stask_offset;
+                if (stack_size <= 2047) {
+                    os << "\taddi sp, sp, " << stack_size << "\n";
+                } else {
+                    os << "\tli t2, " << stack_size << "\n";
+                    os << "\tadd sp, sp, t2\n";
+                }
+                
             }
             os << "\tret\n";
         }
@@ -108,6 +122,20 @@ void RISCVGenerator::visit(const Value& value, std::ostream& os) {
             os << "\tsw t0, " << result_offset << "(sp)\n";
             
         }
+        else if constexpr (std::is_same_v<T, Value::Alloc>) {
+            // already implemented in allocate_stack
+        }
+        else if constexpr (std::is_same_v<T, Value::Load>) {
+            int src_offset = stack_frame.at(arg.ptr); // offset of @x
+            os << "\tlw t0, " << src_offset << "(sp)\n";
+            int res_offset = stack_frame.at(self); // offset of %0
+            os << "\tsw t0, " << res_offset << "(sp)\n";
+        }
+        else if constexpr (std::is_same_v<T, Value::Store>) {
+            load_value_to_reg(arg.value.get(), "t0", os);
+            int dest_offset = stack_frame.at(arg.dest);
+            os << "\tsw t0, " << dest_offset << "(sp)\n";
+        }
     }, value.kind);
 }
 
@@ -116,12 +144,15 @@ void RISCVGenerator::allocate_stack(const Function& func) {
     current_stask_offset = 0;
     for (const auto& bb : func.blocks) {
         for (const auto& inst : bb->insts) {
-            if (std::holds_alternative<Value::Binary>(inst->kind)) {
+            if (std::holds_alternative<Value::Binary>(inst->kind) ||
+                std::holds_alternative<Value::Alloc>(inst->kind) ||
+                std::holds_alternative<Value::Load>(inst->kind)) {
                 current_stask_offset -= 4;
                 stack_frame[inst.get()] = current_stask_offset;
             }
         }
     }
+    current_stask_offset &= ~15; // & ~15(1111_0000)
 }
 
 void RISCVGenerator::load_value_to_reg(const Value* val, const std::string& reg, std::ostream& os) {
