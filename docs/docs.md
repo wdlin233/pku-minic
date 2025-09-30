@@ -282,3 +282,46 @@ if (auto lval = dynamic_cast<const LValAST*>(&expr)) {
 }
 ```
 
+### closure
+
+`ir.cpp` 中的 `[&](auto&& arg) { ... }` 是一个 [Lambda 表达式](https://en.cppreference.com/w/cpp/language/lambda.html)，而对于 `std::visit()`：
+
+```cpp
+template<typename _Visitor, typename... _Variants>
+visit(_Visitor&& __visitor, _Variants&&... __variants)
+```
+
+即是以 `visitor` 为可调用对象，接收 `variants` 为参数.
+
+Lambda 可以参考[一文深入了解C++ lambda（C++17）](
+https://zhuanlan.zhihu.com/p/582664524)，编译器会根据 Lambda 表达式构造一个等价的仿函数.
+
+`[&]` 说明是引用类型全捕获，此处捕获了 `os`. `auto&& arg` 是一个转发引用或者说万能引用，可以对左值和右值分别初始化.
+
+对于 `[this, &os, self = &value](auto&& arg) { ... }` 其中 `this` 用于访问 `RISCVGenerator` 类的成员变量诸如 `stack_frame` 和 `current_stack_offset`，`self = &value` 是以 `&value` 来初始化 `self` 变量.
+
+### 指针、引用与所有权
+
+一般用 `std::unique` 来管理所有权，裸指针 `*` 用于临时的、非所有权的访问，当然 `.get()` 也是取裸指针的操作.
+
+```cpp
+const Value* var_ptr = alloc_inst.get();
+```
+
+`std::move(alloc_inst)` 就意味着所有权的转移.
+
+类型检查：
+
+```cpp
+void IRGenerator::visit(const BlockItemAST& item) {
+    if (auto stmt = dynamic_cast<const StmtAST*>(&item)) {
+        visit(*stmt);
+        return;
+    }
+    ...
+}
+```
+
+首先对引用 `item` 进行取地址操作 `&item`，得到被引用对象的原始指针. 然后将这个**基类指针**尝试向下转型为派生类 `StmtAST` 的**指针**，转型成功后 `*stmt` 对指针解引用，以引用类型传入 `visit` 的参数表.
+
+解引用指针得到了一个对象，将对象以引用的方式传递给 `visit` 函数，由此避免了对 `StmtAST` 的任何拷贝.
