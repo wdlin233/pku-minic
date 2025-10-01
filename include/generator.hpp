@@ -4,6 +4,7 @@
 #include <string>
 #include <unordered_map>
 #include <variant>
+#include <vector>
 
 struct SymbolInfo {
     // for constant storing its int value
@@ -31,10 +32,15 @@ class IRGenerator {
         BasicBlock* current_bb = nullptr;
         int temp_var_counter = 0;
 
-        SymbolTable symbol_table;
+        // Stack of Symbol Tables
+        std::vector<SymbolTable> symbol_tables;
+        std::unordered_map<std::string, int> name_counters;
+        const SymbolInfo* find_symbol(const std::string sym);
 
         std::string new_temp_var_name() {
             return "%" + std::to_string(temp_var_counter++);
         }
         int evaluate_const_expr(const ExprAST& expr);
+        void enter_scope();
+        void exit_scope();
 };

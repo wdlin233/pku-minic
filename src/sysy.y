@@ -230,7 +230,10 @@ LVal
   }
   ;
 
-// Stmt ::= LVal "=" Exp ";" | "return" Exp ";";
+/* Stmt ::= LVal "=" Exp ";"
+        | [Exp] ";"
+        | Block
+        | "return" [Exp] ";"; */
 Stmt
   : LVal '=' Exp ';' {
     auto ast = new StmtAST(StmtAST::ASSIGN);
@@ -238,9 +241,29 @@ Stmt
     ast->expression = unique_ptr<ExprAST>(static_cast<ExprAST*>($3));
     $$ = ast;
   }
+  | Exp ';' {
+    auto ast = new StmtAST(StmtAST::EXPRESSION);
+    ast->expression = unique_ptr<ExprAST>(static_cast<ExprAST*>($1));
+    $$ = ast;
+  }
+  | ';' {
+    auto ast = new StmtAST(StmtAST::EXPRESSION);
+    ast->expression = std::nullopt;
+    $$ = ast;
+  }
+  | Block {
+    auto ast = new StmtAST(StmtAST::BLOCK);
+    ast->block = unique_ptr<BlockAST>(static_cast<BlockAST*>($1));
+    $$ = ast;
+  }
   | RETURN Exp ';' {
     auto ast = new StmtAST(StmtAST::RETURN);
     ast->expression = unique_ptr<ExprAST>(static_cast<ExprAST*>($2));
+    $$ = ast;
+  }
+  | RETURN ';' {
+    auto ast = new StmtAST(StmtAST::RETURN);
+    ast->expression = std::nullopt;
     $$ = ast;
   }
   ;

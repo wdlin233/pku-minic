@@ -2,7 +2,6 @@
 
 #include <string>
 #include <memory>
-#include <iostream>
 #include <vector>
 #include <optional>
 
@@ -75,12 +74,15 @@ class StmtAST : public BlockItemAST {
         // 如果无法判断类型，就用 enum 和一个对应值存储
         enum StmtType {
             ASSIGN,
-            RETURN
+            RETURN,
+            BLOCK,
+            EXPRESSION
         };
 
         StmtType type;
         std::unique_ptr<LValAST> lval;
-        std::unique_ptr<ExprAST> expression;
+        std::optional<std::unique_ptr<ExprAST>> expression; // [Exp]
+        std::unique_ptr<BlockAST> block;
 
         StmtAST(StmtType t) : type(t) {}
 };
