@@ -144,6 +144,7 @@ void RISCVGenerator::allocate_stack(const Function& func) {
     current_stask_offset = 0;
     for (const auto& bb : func.blocks) {
         for (const auto& inst : bb->insts) {
+            // store inst doesnt generate new value
             if (std::holds_alternative<Value::Binary>(inst->kind) ||
                 std::holds_alternative<Value::Alloc>(inst->kind) ||
                 std::holds_alternative<Value::Load>(inst->kind)) {
