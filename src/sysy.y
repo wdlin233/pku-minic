@@ -45,15 +45,16 @@ extern YYLTYPE yylloc;
 %locations
 
 // lexer 返回的所有 token 种类的声明
-%token INT RETURN CONST
+%token INT RETURN CONST IF ELSE
 %token T_LE T_GE T_EQ T_NE T_LAND T_LOR
 %token <str_val> IDENT
 %token <int_val> INT_CONST
 
 // 非终结符的类型定义
-%type <ast_val> FuncDef FuncType Block Stmt BlockItem Number 
+%type <ast_val> FuncDef FuncType Block BlockItem Number 
 %type <ast_val> Exp PrimaryExp AddExp MulExp UnaryExp RelExp EqExp LAndExp LOrExp
 %type <ast_val> Decl ConstDecl ConstDef ConstInitVal VarDecl VarDef InitVal LVal ConstExp
+%type <ast_val> Stmt OpenStmt ClosedStmt OtherStmt
 %type <vec_defs> ConstDefList
 %type <vec_items> BlockItemList
 %type <vec_var_defs> VarDefList
@@ -233,36 +234,79 @@ LVal
 /* Stmt ::= LVal "=" Exp ";"
         | [Exp] ";"
         | Block
-        | "return" [Exp] ";"; */
+        | "if" "(" Exp ")" Stmt ["else" Stmt]
+        | "return" [Exp] ";"
+        ; 
+        
+open_statement: IF '(' expression ')' statement
+        | IF '(' expression ')' closed_statement ELSE open_statement
+        ;
+
+closed_statement: non_if_statement
+        | IF '(' expression ')' closed_statement ELSE closed_statement
+        ;
+*/
 Stmt
+  : OpenStmt { $$ = $1; }
+  | ClosedStmt { $$ = $1; }
+  ;
+
+OpenStmt
+  : IF '(' Exp ')' Stmt {
+    auto ast = new IfStmtAST();
+    ast->condition = unique_ptr<ExprAST>(static_cast<ExprAST*>($3));
+    ast->then_stmt = unique_ptr<StmtAST>(static_cast<StmtAST*>($5));
+    $$ = ast;
+  }
+  | IF '(' Exp ')' ClosedStmt ELSE OpenStmt {
+    auto ast = new IfStmtAST();
+    ast->condition = unique_ptr<ExprAST>(static_cast<ExprAST*>($3));
+    ast->then_stmt = unique_ptr<StmtAST>(static_cast<StmtAST*>($5));
+    ast->else_stmt = unique_ptr<StmtAST>(static_cast<StmtAST*>($7));
+    $$ = ast;
+  }
+  ;
+
+ClosedStmt
+  : IF '(' Exp ')' ClosedStmt ELSE ClosedStmt {
+    auto ast = new IfStmtAST();
+    ast->condition = unique_ptr<ExprAST>(static_cast<ExprAST*>($3));
+    ast->then_stmt = unique_ptr<StmtAST>(static_cast<StmtAST*>($5));
+    ast->else_stmt = unique_ptr<StmtAST>(static_cast<StmtAST*>($7));
+    $$ = ast;
+  }
+  | OtherStmt { $$ = $1; }
+  ;
+
+OtherStmt
   : LVal '=' Exp ';' {
-    auto ast = new StmtAST(StmtAST::ASSIGN);
+    auto ast = new AssignStmtAST();
     ast->lval = unique_ptr<LValAST>(static_cast<LValAST*>($1));
     ast->expression = unique_ptr<ExprAST>(static_cast<ExprAST*>($3));
     $$ = ast;
   }
   | Exp ';' {
-    auto ast = new StmtAST(StmtAST::EXPRESSION);
+    auto ast = new ExprStmtAST();
     ast->expression = unique_ptr<ExprAST>(static_cast<ExprAST*>($1));
     $$ = ast;
   }
   | ';' {
-    auto ast = new StmtAST(StmtAST::EXPRESSION);
+    auto ast = new ExprStmtAST();
     ast->expression = std::nullopt;
     $$ = ast;
   }
   | Block {
-    auto ast = new StmtAST(StmtAST::BLOCK);
+    auto ast = new BlockStmtAST();
     ast->block = unique_ptr<BlockAST>(static_cast<BlockAST*>($1));
     $$ = ast;
   }
   | RETURN Exp ';' {
-    auto ast = new StmtAST(StmtAST::RETURN);
+    auto ast = new ReturnStmtAST();
     ast->expression = unique_ptr<ExprAST>(static_cast<ExprAST*>($2));
     $$ = ast;
   }
   | RETURN ';' {
-    auto ast = new StmtAST(StmtAST::RETURN);
+    auto ast = new ReturnStmtAST();
     ast->expression = std::nullopt;
     $$ = ast;
   }

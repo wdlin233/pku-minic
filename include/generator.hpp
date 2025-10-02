@@ -21,6 +21,11 @@ class IRGenerator {
         void visit(const FuncDefAST& func_def);
         void visit(const BlockItemAST& item);
         void visit(const StmtAST& stmt);
+        void visit(const AssignStmtAST& assign_stmt);
+        void visit(const ReturnStmtAST& return_stmt);
+        void visit(const BlockStmtAST& block_stmt);
+        void visit(const ExprStmtAST& expr_stmt);
+        void visit(const IfStmtAST& if_stmt);
         void visit(const DeclAST& decl);
         void visit(const ConstDeclAST& const_decl);
         void visit(const VarDeclAST& var_decl);

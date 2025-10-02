@@ -69,22 +69,34 @@ class BlockAST : public BaseAST {
         std::vector<std::unique_ptr<BlockItemAST>> items;
 };
 
-class StmtAST : public BlockItemAST {
+class StmtAST : public BlockItemAST {};
+
+class AssignStmtAST : public StmtAST {
     public:
-        // 如果无法判断类型，就用 enum 和一个对应值存储
-        enum StmtType {
-            ASSIGN,
-            RETURN,
-            BLOCK,
-            EXPRESSION
-        };
-
-        StmtType type;
         std::unique_ptr<LValAST> lval;
-        std::optional<std::unique_ptr<ExprAST>> expression; // [Exp]
-        std::unique_ptr<BlockAST> block;
+        std::unique_ptr<ExprAST> expression;
+};
 
-        StmtAST(StmtType t) : type(t) {}
+class ReturnStmtAST : public StmtAST {
+    public:
+        std::optional<std::unique_ptr<ExprAST>> expression; // [Exp]
+};
+
+class BlockStmtAST : public StmtAST {
+    public:
+        std::unique_ptr<BlockAST> block;
+};
+
+class ExprStmtAST : public StmtAST {
+    public:
+        std::optional<std::unique_ptr<ExprAST>> expression; // [Exp]
+};
+
+class IfStmtAST : public StmtAST {
+    public:
+        std::unique_ptr<ExprAST> condition;
+        std::unique_ptr<StmtAST> then_stmt;
+        std::optional<std::unique_ptr<StmtAST>> else_stmt; 
 };
 
 class DeclAST : public BlockItemAST {};

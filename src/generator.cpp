@@ -39,6 +39,7 @@ void IRGenerator::visit(const FuncDefAST& func_def) {
 
 void IRGenerator::visit(const BlockItemAST& item) {
     if (auto stmt = dynamic_cast<const StmtAST*>(&item)) {
+        // TODO
         visit(*stmt);
         return;
     }
@@ -179,65 +180,84 @@ int IRGenerator::evaluate_const_expr(const ExprAST& expr) {
 }
 
 void IRGenerator::visit(const StmtAST& stmt) {
-    switch (stmt.type) {
-        case StmtAST::ASSIGN: {
-            const SymbolInfo* info = find_symbol(stmt.lval->ident);
-            if (!info) {
-                std::cerr << "Semantic Error: Undefined identifier '" << stmt.lval->ident << "'" << std::endl;
-                exit(1);
-            }
-
-            if (std::holds_alternative<int>(info->kind)) {
-                // 在处理赋值语句时, 赋值语句左侧的 LVal 对应一个常量, 而不是变量.
-                std::cerr << "Semantic Error: Cannot assign to constant '" << stmt.lval->ident << "'" << std::endl;
-                exit(1);
-            } else {
-                // variable
-                const Value* var_ptr = std::get<const Value*>(info->kind);
-                auto rval = visit(*stmt.expression.value());
-                auto store_inst = std::make_unique<Value>(
-                    Value::Store{std::move(rval), var_ptr}
-                );
-                current_bb->insts.push_back(std::move(store_inst));
-            }
-            break;
-
-        }
-        case StmtAST::RETURN: {
-            std::unique_ptr<Value> ret_val;
-            if (stmt.expression.has_value()) {
-                ret_val = visit(*stmt.expression.value());
-            } else {
-                ret_val = std::make_unique<Value>(0);
-            }
-            auto ret_inst = std::make_unique<Value>(
-                Value::Return{ std::move(ret_val) }
-            );
-            ret_inst->type = std::make_unique<Type>();
-            ret_inst->type->kind = Type::INTEGER;
-
-            current_bb->insts.push_back(std::move(ret_inst));
-            break;
-        }
-        case StmtAST::EXPRESSION: {
-            if (stmt.expression.has_value()) {
-                visit(*stmt.expression.value());
-            }
-            break;
-        }
-        case StmtAST::BLOCK: {
-            enter_scope();
-            for (const auto& item : stmt.block->items) {
-                visit(*item);
-            }
-            exit_scope();
-            break;
-        }
-        default: {
-            std::cerr << "No matching StmtAST enum type!" << std::endl;
-            break;
-        }
+    if (auto assign_stmt = dynamic_cast<const AssignStmtAST*>(&stmt)) {
+        visit(*assign_stmt);
+        return;
     }
+    if (auto return_stmt = dynamic_cast<const ReturnStmtAST*>(&stmt)) {
+        visit(*return_stmt);
+        return;
+    }
+    if (auto block_stmt = dynamic_cast<const BlockStmtAST*>(&stmt)) {
+        visit(*block_stmt);
+        return;
+    }
+    if (auto expr_stmt = dynamic_cast<const ExprStmtAST*>(&stmt)) {
+        visit(*expr_stmt);
+        return;
+    }
+    if (auto if_stmt = dynamic_cast<const IfStmtAST*>(&stmt)) {
+        visit(*if_stmt);
+        return;
+    }
+    
+    assert(false && "Unknown statement type");
+}
+
+void IRGenerator::visit(const AssignStmtAST& assign_stmt) {
+    const SymbolInfo* info = find_symbol(assign_stmt.lval->ident);
+    if (!info) {
+        std::cerr << "Semantic Error: Undefined identifier '" << assign_stmt.lval->ident << "'" << std::endl;
+        exit(1);
+    }
+
+    if (std::holds_alternative<int>(info->kind)) {
+        // 在处理赋值语句时, 赋值语句左侧的 LVal 对应一个常量, 而不是变量.
+        std::cerr << "Semantic Error: Cannot assign to constant '" << assign_stmt.lval->ident << "'" << std::endl;
+        exit(1);
+    } else {
+        // variable
+        const Value* var_ptr = std::get<const Value*>(info->kind);
+        auto rval = visit(*assign_stmt.expression);
+        auto store_inst = std::make_unique<Value>(
+            Value::Store{std::move(rval), var_ptr}
+        );
+        current_bb->insts.push_back(std::move(store_inst));
+    }
+}
+
+void IRGenerator::visit(const ReturnStmtAST& return_stmt) {
+    std::unique_ptr<Value> ret_val;
+    if (return_stmt.expression.has_value()) {
+        ret_val = visit(*return_stmt.expression.value());
+    } else {
+        ret_val = std::make_unique<Value>(0);
+    }
+    auto ret_inst = std::make_unique<Value>(
+        Value::Return{ std::move(ret_val) }
+    );
+    ret_inst->type = std::make_unique<Type>();
+    ret_inst->type->kind = Type::INTEGER;
+
+    current_bb->insts.push_back(std::move(ret_inst));
+}
+
+void IRGenerator::visit(const BlockStmtAST& block_stmt) {
+    enter_scope();
+    for (const auto& item : block_stmt.block->items) {
+        visit(*item);
+    }
+    exit_scope();
+}
+
+void IRGenerator::visit(const ExprStmtAST& expr_stmt) {
+    if (expr_stmt.expression.has_value()) {
+        visit(*expr_stmt.expression.value());
+    }
+}
+
+void IRGenerator::visit(const IfStmtAST& if_stmt) {
+    // TODO
 }
 
 // UnaryExp ::= PrimaryExp | UnaryOp UnaryExp;
