@@ -49,8 +49,8 @@ void Program::Dump(std::ostream& os) const {
 
 void Function::Dump(std::ostream& os) const {
     os << "fun " << name << "(): i32 {\n";
-    for (const auto& basic_block : blocks) {
-        basic_block->Dump(os);
+    for (auto basic_block = blocks.rbegin(); basic_block != blocks.rend(); basic_block++) {
+        (*basic_block)->Dump(os);
     }
     os << "}\n";
 }
