@@ -64,6 +64,14 @@ void BasicBlock::Dump(std::ostream& os) const {
     }
 }
 
+bool BasicBlock::has_terminator() const {
+    if (insts.empty()) return false;
+    const auto& last_kind = insts.back()->kind;
+    return std::holds_alternative<Value::Return>(last_kind) ||
+        std::holds_alternative<Value::Branch>(last_kind) ||
+        std::holds_alternative<Value::Jump>(last_kind);
+}
+
 void Value::Dump(std::ostream& os) const {
     // check `kind` type, making `name` output
     if (!name.empty() && 
@@ -111,6 +119,16 @@ void Value::Dump(std::ostream& os) const {
             os << "store ";
             arg.value->Dump(os);
             os << " ," << arg.dest->name;
+        } else if constexpr (std::is_same_v<T, Branch>) {
+            os << "br ";
+            arg.cond->Dump(os); 
+            os << ", ";
+            arg.true_bb->Dump(os);
+            os << ", ";
+            arg.false_bb->Dump(os);
+        } else if constexpr (std::is_same_v<T, Jump>) {
+            os << "jump ";
+            arg.target_bb->Dump(os);
         }
     }, kind);
 }

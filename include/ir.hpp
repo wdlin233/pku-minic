@@ -1,5 +1,6 @@
 #pragma once
 
+#include <algorithm>
 #include <cassert>
 #include <cstdint>
 #include <iostream>
@@ -23,6 +24,7 @@ struct Type {
     Kind kind;
 };
 
+// also instruction
 struct Value {
     std::string name; // temp name, %name
     std::unique_ptr<Type> type;
@@ -62,6 +64,15 @@ struct Value {
         const Value* dest;
     };
 
+    struct Branch {
+        const Value* cond;
+        const BasicBlock* true_bb;
+        const BasicBlock* false_bb;
+    };
+    struct Jump {
+        const BasicBlock* target_bb;
+    };
+
     using Kind = std::variant<
         Integer,
         Return,
@@ -69,7 +80,9 @@ struct Value {
         SymbolRef,
         Alloc,
         Load,
-        Store
+        Store,
+        Branch,
+        Jump
     >;
     Kind kind;
 
@@ -80,6 +93,8 @@ struct Value {
     Value(Alloc alloc) : kind(std::move(alloc)) {}
     Value(Load load) : kind(std::move(load)) {}
     Value(Store store) : kind(std::move(store)) {}
+    Value(Branch branch) : kind(std::move(branch)) {}
+    Value(Jump jump) : kind(std::move(jump)) {}
 
     explicit Value(int val) : kind(Integer{val}) {
         type = std::make_unique<Type>();
@@ -98,6 +113,7 @@ struct BasicBlock {
     std::vector<std::unique_ptr<Value>> insts;
 
     void Dump(std::ostream& os) const;
+    bool has_terminator() const;
 };
 
 struct Function {

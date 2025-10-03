@@ -1,5 +1,6 @@
 #include "../include/generator.hpp"
 #include "sysy.tab.hpp"
+#include <algorithm>
 #include <cassert>
 #include <iostream>
 #include <memory>
@@ -231,7 +232,7 @@ void IRGenerator::visit(const ReturnStmtAST& return_stmt) {
     if (return_stmt.expression.has_value()) {
         ret_val = visit(*return_stmt.expression.value());
     } else {
-        ret_val = std::make_unique<Value>(0);
+        ret_val = std::make_unique<Value>(Value::Integer{0});
     }
     auto ret_inst = std::make_unique<Value>(
         Value::Return{ std::move(ret_val) }
@@ -257,7 +258,49 @@ void IRGenerator::visit(const ExprStmtAST& expr_stmt) {
 }
 
 void IRGenerator::visit(const IfStmtAST& if_stmt) {
-    // TODO
+    std::unique_ptr<Value> cond_val = visit(*if_stmt.condition);
+
+    std::unique_ptr<BasicBlock> then_bb = std::make_unique<BasicBlock>();
+    then_bb->name = new_branch_name("then");
+    std::unique_ptr<BasicBlock> else_bb = nullptr;
+    if (if_stmt.else_stmt.has_value()) {
+        else_bb = std::make_unique<BasicBlock>();
+        else_bb->name = new_branch_name("else");
+    }
+    std::unique_ptr<BasicBlock> end_bb = std::make_unique<BasicBlock>();
+    end_bb->name = new_branch_name("end");
+
+    // Add insts to BasicBlocks
+    BasicBlock* then_bb_ptr = then_bb.get();
+    BasicBlock* else_bb_ptr = else_bb ? else_bb.get() : end_bb.get();
+    BasicBlock* end_bb_ptr = end_bb.get();
+
+    auto br_inst = std::make_unique<Value>(
+        Value::Branch{cond_val.get(), then_bb_ptr, else_bb_ptr}
+    );
+    current_bb->insts.push_back(std::move(br_inst));
+
+    current_bb = then_bb_ptr;
+    visit(*if_stmt.then_stmt);
+    if (!current_bb->has_terminator()) {
+        // not terminated by instruction such as return
+        auto jump_end = std::make_unique<Value>(Value::Jump{end_bb_ptr});
+        current_bb->insts.push_back(std::move(jump_end));
+    }
+
+    if (if_stmt.else_stmt.has_value()) {
+        current_bb = else_bb.get();
+        visit(*if_stmt.else_stmt.value());
+        if (!current_bb->has_terminator()) {
+            auto jump_end = std::make_unique<Value>(Value::Jump{end_bb_ptr});
+            current_bb->insts.push_back(std::move(jump_end));
+        }
+    }
+
+    current_function->blocks.push_back(std::move(then_bb));
+    if (if_stmt.else_stmt.has_value()) current_function->blocks.push_back(std::move(else_bb));
+    current_function->blocks.push_back(std::move(end_bb));
+    current_bb = end_bb_ptr;
 }
 
 // UnaryExp ::= PrimaryExp | UnaryOp UnaryExp;
@@ -446,7 +489,7 @@ std::unique_ptr<Value> IRGenerator::visit(const ExprAST& expr) {
 
     if (auto lval = dynamic_cast<const LValAST*>(&expr)) {
         const SymbolInfo* info = find_symbol(lval->ident);
-        assert(info && "Undefined constant variable");
+        assert(info && "Undefined identifier");
 
         if (std::holds_alternative<int>(info->kind)) {
             // constant

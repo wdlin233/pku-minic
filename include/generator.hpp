@@ -1,3 +1,5 @@
+#pragma once
+
 #include "ast.hpp"
 #include "ir.hpp"
 #include <memory>
@@ -36,6 +38,7 @@ class IRGenerator {
         std::unique_ptr<Program> program;
         BasicBlock* current_bb = nullptr;
         int temp_var_counter = 0;
+        int branch_counter = -1;
 
         // Stack of Symbol Tables
         std::vector<SymbolTable> symbol_tables;
@@ -44,6 +47,10 @@ class IRGenerator {
 
         std::string new_temp_var_name() {
             return "%" + std::to_string(temp_var_counter++);
+        }
+        std::string new_branch_name(const std::string& mode) {
+            if (mode == "then") branch_counter++;
+            return "%" + mode + '_' + std::to_string(branch_counter);
         }
         int evaluate_const_expr(const ExprAST& expr);
         void enter_scope();
