@@ -122,13 +122,10 @@ void Value::Dump(std::ostream& os) const {
         } else if constexpr (std::is_same_v<T, Branch>) {
             os << "br ";
             arg.cond->Dump(os); 
-            os << ", ";
-            arg.true_bb->Dump(os);
-            os << ", ";
-            arg.false_bb->Dump(os);
+            os << ", " << arg.true_bb->name; // not Dump whole BasicBlock
+            os << ", " << arg.false_bb->name;
         } else if constexpr (std::is_same_v<T, Jump>) {
-            os << "jump ";
-            arg.target_bb->Dump(os);
+            os << "jump " << arg.target_bb->name;
         }
     }, kind);
 }

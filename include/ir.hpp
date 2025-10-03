@@ -65,7 +65,7 @@ struct Value {
     };
 
     struct Branch {
-        const Value* cond;
+        std::unique_ptr<Value> cond;
         const BasicBlock* true_bb;
         const BasicBlock* false_bb;
     };

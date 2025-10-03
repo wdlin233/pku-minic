@@ -276,7 +276,7 @@ void IRGenerator::visit(const IfStmtAST& if_stmt) {
     BasicBlock* end_bb_ptr = end_bb.get();
 
     auto br_inst = std::make_unique<Value>(
-        Value::Branch{cond_val.get(), then_bb_ptr, else_bb_ptr}
+        Value::Branch{std::move(cond_val), then_bb_ptr, else_bb_ptr}
     );
     current_bb->insts.push_back(std::move(br_inst));
 
