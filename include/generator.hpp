@@ -33,12 +33,14 @@ class IRGenerator {
         void visit(const VarDeclAST& var_decl);
 
         std::unique_ptr<Value> visit(const ExprAST& number);
+        void visit_as_condition(const ExprAST& cond, BasicBlock* true_bb, BasicBlock* false_bb);
 
         Function* current_function = nullptr;
         std::unique_ptr<Program> program;
         BasicBlock* current_bb = nullptr;
         int temp_var_counter = 0;
         int branch_counter = -1;
+        int condition_counter = -1;
 
         // Stack of Symbol Tables
         std::vector<SymbolTable> symbol_tables;
@@ -51,6 +53,10 @@ class IRGenerator {
         std::string new_branch_name(const std::string& mode) {
             if (mode == "then") branch_counter++;
             return "%" + mode + '_' + std::to_string(branch_counter);
+        }
+        std::string new_cond_branch_name(const std::string& mode) {
+            if (mode == "land_rhs" || mode == "lor_rhs") condition_counter++;
+            return "%" + mode + '_' + std::to_string(condition_counter);
         }
         int evaluate_const_expr(const ExprAST& expr);
         void enter_scope();

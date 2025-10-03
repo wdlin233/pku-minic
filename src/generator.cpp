@@ -39,8 +39,13 @@ void IRGenerator::visit(const FuncDefAST& func_def) {
 }
 
 void IRGenerator::visit(const BlockItemAST& item) {
+    // BlockItem ::= Decl | Stmt;
+    // entry for all declarations and statements 
+    if (current_bb->has_terminator()) {
+        return;
+    }
+
     if (auto stmt = dynamic_cast<const StmtAST*>(&item)) {
-        // TODO
         visit(*stmt);
         return;
     }
@@ -206,6 +211,10 @@ void IRGenerator::visit(const StmtAST& stmt) {
 }
 
 void IRGenerator::visit(const AssignStmtAST& assign_stmt) {
+    if (current_bb->has_terminator()) {
+        return;
+    }
+    
     const SymbolInfo* info = find_symbol(assign_stmt.lval->ident);
     if (!info) {
         std::cerr << "Semantic Error: Undefined identifier '" << assign_stmt.lval->ident << "'" << std::endl;
@@ -228,6 +237,10 @@ void IRGenerator::visit(const AssignStmtAST& assign_stmt) {
 }
 
 void IRGenerator::visit(const ReturnStmtAST& return_stmt) {
+    if (current_bb->has_terminator()) {
+        return;
+    }
+
     std::unique_ptr<Value> ret_val;
     if (return_stmt.expression.has_value()) {
         ret_val = visit(*return_stmt.expression.value());
@@ -252,14 +265,16 @@ void IRGenerator::visit(const BlockStmtAST& block_stmt) {
 }
 
 void IRGenerator::visit(const ExprStmtAST& expr_stmt) {
+    if (current_bb->has_terminator()) {
+        return;
+    }
+
     if (expr_stmt.expression.has_value()) {
         visit(*expr_stmt.expression.value());
     }
 }
 
 void IRGenerator::visit(const IfStmtAST& if_stmt) {
-    std::unique_ptr<Value> cond_val = visit(*if_stmt.condition);
-
     std::unique_ptr<BasicBlock> then_bb = std::make_unique<BasicBlock>();
     then_bb->name = new_branch_name("then");
     std::unique_ptr<BasicBlock> else_bb = nullptr;
@@ -275,10 +290,7 @@ void IRGenerator::visit(const IfStmtAST& if_stmt) {
     BasicBlock* else_bb_ptr = else_bb ? else_bb.get() : end_bb.get();
     BasicBlock* end_bb_ptr = end_bb.get();
 
-    auto br_inst = std::make_unique<Value>(
-        Value::Branch{std::move(cond_val), then_bb_ptr, else_bb_ptr}
-    );
-    current_bb->insts.push_back(std::move(br_inst));
+    visit_as_condition(*if_stmt.condition, then_bb_ptr, else_bb_ptr);
 
     current_bb = then_bb_ptr;
     visit(*if_stmt.then_stmt);
@@ -513,6 +525,41 @@ std::unique_ptr<Value> IRGenerator::visit(const ExprAST& expr) {
     
     assert(false && "Unknown expression type");
     return nullptr;
+}
+
+void IRGenerator::visit_as_condition(const ExprAST& cond, BasicBlock* true_bb, BasicBlock* false_bb) {
+    if (auto binary = dynamic_cast<const BinaryExprAST*>(&cond); binary && binary->op == T_LAND) {
+        auto rhs_bb = std::make_unique<BasicBlock>();
+        rhs_bb->name = new_cond_branch_name("land_rhs");
+        BasicBlock* rhs_bb_ptr = rhs_bb.get();
+        current_function->blocks.push_back(std::move(rhs_bb));
+
+        visit_as_condition(*binary->lhs, rhs_bb_ptr, false_bb);
+
+        current_bb = rhs_bb_ptr;
+        visit_as_condition(*binary->rhs, true_bb, false_bb);
+        return;
+    }
+    
+    if (auto binary = dynamic_cast<const BinaryExprAST*>(&cond); binary && binary->op == T_LOR) {
+        auto rhs_bb = std::make_unique<BasicBlock>();
+        rhs_bb->name = new_cond_branch_name("lor_rhs");
+        BasicBlock* rhs_bb_ptr = rhs_bb.get();
+        current_function->blocks.push_back(std::move(rhs_bb));
+
+        visit_as_condition(*binary->lhs, true_bb, rhs_bb_ptr);
+
+        current_bb = rhs_bb_ptr;
+        visit_as_condition(*binary->rhs, true_bb, false_bb);
+        return;
+    }
+
+    // other situation
+    auto cond_val = visit(cond);
+    auto br_inst = std::make_unique<Value>(
+        Value::Branch{std::move(cond_val), true_bb, false_bb}
+    );
+    current_bb->insts.push_back(std::move(br_inst));
 }
 
 void IRGenerator::enter_scope() {
