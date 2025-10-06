@@ -99,6 +99,12 @@ class IfStmtAST : public StmtAST {
         std::optional<std::unique_ptr<StmtAST>> else_stmt; 
 };
 
+class WhileStmtAST : public StmtAST {
+    public:
+        std::unique_ptr<ExprAST> condition;
+        std::unique_ptr<StmtAST> while_stmt;
+};
+
 class DeclAST : public BlockItemAST {};
 
 // ConstDecl ::= "const" BType ConstDef {"," ConstDef} ";";

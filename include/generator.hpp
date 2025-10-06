@@ -28,6 +28,7 @@ class IRGenerator {
         void visit(const BlockStmtAST& block_stmt);
         void visit(const ExprStmtAST& expr_stmt);
         void visit(const IfStmtAST& if_stmt);
+        void visit(const WhileStmtAST& while_stmt);
         void visit(const DeclAST& decl);
         void visit(const ConstDeclAST& const_decl);
         void visit(const VarDeclAST& var_decl);
@@ -41,6 +42,7 @@ class IRGenerator {
         int temp_var_counter = 0;
         int branch_counter = -1;
         int condition_counter = -1;
+        int while_counter = -1;
 
         // Stack of Symbol Tables
         std::vector<SymbolTable> symbol_tables;
@@ -57,6 +59,10 @@ class IRGenerator {
         std::string new_cond_branch_name(const std::string& mode) {
             if (mode == "land_rhs" || mode == "lor_rhs") condition_counter++;
             return "%" + mode + '_' + std::to_string(condition_counter);
+        }
+        std::string new_while_name(const std::string& mode) {
+            if (mode == "while_entry") while_counter++;
+            return "%" + mode + '_' + std::to_string(while_counter);
         }
         int evaluate_const_expr(const ExprAST& expr);
         void enter_scope();

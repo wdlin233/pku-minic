@@ -206,7 +206,11 @@ void IRGenerator::visit(const StmtAST& stmt) {
         visit(*if_stmt);
         return;
     }
-    
+    if (auto while_stmt = dynamic_cast<const WhileStmtAST*>(&stmt)) {
+        visit(*while_stmt);
+        return;
+    }
+
     assert(false && "Unknown statement type");
 }
 
@@ -313,6 +317,39 @@ void IRGenerator::visit(const IfStmtAST& if_stmt) {
     if (if_stmt.else_stmt.has_value()) current_function->blocks.push_back(std::move(else_bb));
     current_function->blocks.push_back(std::move(end_bb));
     current_bb = end_bb_ptr;
+}
+
+void IRGenerator::visit(const WhileStmtAST& while_stmt) {
+    std::unique_ptr<BasicBlock> while_entry = std::make_unique<BasicBlock>();
+    while_entry->name = new_while_name("while_entry");
+    std::unique_ptr<BasicBlock> while_body = std::make_unique<BasicBlock>();
+    while_body->name = new_while_name("while_body");
+    std::unique_ptr<BasicBlock> while_end = std::make_unique<BasicBlock>();
+    while_end->name = new_while_name("while_end");
+
+    BasicBlock* while_entry_ptr = while_entry.get();
+    BasicBlock* while_body_ptr = while_body.get();
+    BasicBlock* while_end_ptr = while_end.get();
+
+    auto jump_while_entry = std::make_unique<Value>(Value::Jump{while_entry_ptr});
+    current_bb->insts.push_back(std::move(jump_while_entry));
+    
+    current_bb = while_entry_ptr;
+    auto cond_val = visit(*while_stmt.condition);
+    auto while_br = std::make_unique<Value>(Value::Branch{std::move(cond_val), while_body_ptr, while_end_ptr});
+    current_bb->insts.push_back(std::move(while_br));
+
+    current_bb = while_body_ptr;
+    visit(*while_stmt.while_stmt);
+    if (!current_bb->has_terminator()) {
+        auto jump_end = std::make_unique<Value>(Value::Jump{while_entry_ptr});
+        current_bb->insts.push_back(std::move(jump_end));
+    }
+    
+    current_function->blocks.push_back(std::move(while_entry));
+    current_function->blocks.push_back(std::move(while_body));
+    current_function->blocks.push_back(std::move(while_end));
+    current_bb = while_end_ptr;
 }
 
 // UnaryExp ::= PrimaryExp | UnaryOp UnaryExp;

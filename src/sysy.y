@@ -45,7 +45,7 @@ extern YYLTYPE yylloc;
 %locations
 
 // lexer 返回的所有 token 种类的声明
-%token INT RETURN CONST IF ELSE
+%token INT RETURN CONST IF ELSE WHILE
 %token T_LE T_GE T_EQ T_NE T_LAND T_LOR
 %token <str_val> IDENT
 %token <int_val> INT_CONST
@@ -235,6 +235,7 @@ LVal
         | [Exp] ";"
         | Block
         | "if" "(" Exp ")" Stmt ["else" Stmt]
+        | "while" "(" Exp ")" Stmt
         | "return" [Exp] ";"
         ; 
         
@@ -298,6 +299,12 @@ OtherStmt
   | Block {
     auto ast = new BlockStmtAST();
     ast->block = unique_ptr<BlockAST>(static_cast<BlockAST*>($1));
+    $$ = ast;
+  }
+  | WHILE '(' Exp ')' Stmt {
+    auto ast = new WhileStmtAST();
+    ast->condition = unique_ptr<ExprAST>(static_cast<ExprAST*>($3));
+    ast->while_stmt = unique_ptr<StmtAST>(static_cast<StmtAST*>($5));
     $$ = ast;
   }
   | RETURN Exp ';' {
