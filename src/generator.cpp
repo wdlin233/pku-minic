@@ -210,6 +210,14 @@ void IRGenerator::visit(const StmtAST& stmt) {
         visit(*while_stmt);
         return;
     }
+    if (auto break_stmt = dynamic_cast<const BreakStmtAST*>(&stmt)) {
+        visit(*break_stmt);
+        return;
+    }
+    if (auto continue_stmt = dynamic_cast<const ContinueStmtAST*>(&stmt)) {
+        visit(*continue_stmt);
+        return;
+    }
 
     assert(false && "Unknown statement type");
 }
@@ -324,32 +332,70 @@ void IRGenerator::visit(const WhileStmtAST& while_stmt) {
     while_entry->name = new_while_name("while_entry");
     std::unique_ptr<BasicBlock> while_body = std::make_unique<BasicBlock>();
     while_body->name = new_while_name("while_body");
+    std::unique_ptr<BasicBlock> while_continue = std::make_unique<BasicBlock>();
+    while_continue->name = new_while_name("while_continue");
     std::unique_ptr<BasicBlock> while_end = std::make_unique<BasicBlock>();
     while_end->name = new_while_name("while_end");
 
     BasicBlock* while_entry_ptr = while_entry.get();
     BasicBlock* while_body_ptr = while_body.get();
+    BasicBlock* while_continue_ptr = while_continue.get();
     BasicBlock* while_end_ptr = while_end.get();
 
-    auto jump_while_entry = std::make_unique<Value>(Value::Jump{while_entry_ptr});
-    current_bb->insts.push_back(std::move(jump_while_entry));
+    if (!current_bb->has_terminator()) {
+        auto jump_while_entry = std::make_unique<Value>(Value::Jump{while_entry_ptr});
+        current_bb->insts.push_back(std::move(jump_while_entry));
+    }
     
+    loop_context_stack.push(LoopContext{while_continue_ptr, while_end_ptr});
+
     current_bb = while_entry_ptr;
-    auto cond_val = visit(*while_stmt.condition);
-    auto while_br = std::make_unique<Value>(Value::Branch{std::move(cond_val), while_body_ptr, while_end_ptr});
-    current_bb->insts.push_back(std::move(while_br));
+    visit_as_condition(*while_stmt.condition, while_body_ptr, while_end_ptr);
 
     current_bb = while_body_ptr;
     visit(*while_stmt.while_stmt);
     if (!current_bb->has_terminator()) {
-        auto jump_end = std::make_unique<Value>(Value::Jump{while_entry_ptr});
-        current_bb->insts.push_back(std::move(jump_end));
+        auto jump_continue = std::make_unique<Value>(Value::Jump{while_continue_ptr});
+        current_bb->insts.push_back(std::move(jump_continue));
     }
+    
+    current_bb = while_continue_ptr;
+    if (!current_bb->has_terminator()) {
+        auto jump_entry = std::make_unique<Value>(Value::Jump{while_entry_ptr});
+        current_bb->insts.push_back(std::move(jump_entry));
+    }
+
+    loop_context_stack.pop();
     
     current_function->blocks.push_back(std::move(while_entry));
     current_function->blocks.push_back(std::move(while_body));
+    current_function->blocks.push_back(std::move(while_continue));
     current_function->blocks.push_back(std::move(while_end));
     current_bb = while_end_ptr;
+}
+
+void IRGenerator::visit(const BreakStmtAST& break_stmt) {
+    if (loop_context_stack.empty()) {
+        std::cerr << "Semantic Error: 'break' statement not in loop" << std::endl;
+        exit(1);
+    }
+    if (current_bb->has_terminator()) return;
+
+    const LoopContext& current_loop = loop_context_stack.top();
+    auto jump_end = std::make_unique<Value>(Value::Jump{current_loop.end_bb});
+    current_bb->insts.push_back(std::move(jump_end));
+}
+
+void IRGenerator::visit(const ContinueStmtAST& continue_stmt) {
+    if (loop_context_stack.empty()) {
+        std::cerr << "Semantic Error: 'continue' statement not in loop" << std::endl;
+        exit(1);
+    }
+    if (current_bb->has_terminator()) return;
+
+    const LoopContext& current_loop = loop_context_stack.top();
+    auto jump_entry = std::make_unique<Value>(Value::Jump{current_loop.entry_bb});
+    current_bb->insts.push_back(std::move(jump_entry));
 }
 
 // UnaryExp ::= PrimaryExp | UnaryOp UnaryExp;

@@ -105,6 +105,9 @@ class WhileStmtAST : public StmtAST {
         std::unique_ptr<StmtAST> while_stmt;
 };
 
+class BreakStmtAST : public StmtAST {};
+class ContinueStmtAST : public StmtAST {};
+
 class DeclAST : public BlockItemAST {};
 
 // ConstDecl ::= "const" BType ConstDef {"," ConstDef} ";";

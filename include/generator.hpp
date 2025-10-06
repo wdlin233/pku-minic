@@ -7,6 +7,7 @@
 #include <unordered_map>
 #include <variant>
 #include <vector>
+#include <stack>
 
 struct SymbolInfo {
     // for constant storing its int value
@@ -29,6 +30,8 @@ class IRGenerator {
         void visit(const ExprStmtAST& expr_stmt);
         void visit(const IfStmtAST& if_stmt);
         void visit(const WhileStmtAST& while_stmt);
+        void visit(const BreakStmtAST& break_stmt);
+        void visit(const ContinueStmtAST& continue_stmt);
         void visit(const DeclAST& decl);
         void visit(const ConstDeclAST& const_decl);
         void visit(const VarDeclAST& var_decl);
@@ -48,6 +51,13 @@ class IRGenerator {
         std::vector<SymbolTable> symbol_tables;
         std::unordered_map<std::string, int> name_counters;
         const SymbolInfo* find_symbol(const std::string sym);
+
+        // Context of Loop, for nested loop structure
+        struct LoopContext {
+            BasicBlock* entry_bb; // target of continue
+            BasicBlock* end_bb; // target of break
+        }; 
+        std::stack<LoopContext> loop_context_stack;
 
         std::string new_temp_var_name() {
             return "%" + std::to_string(temp_var_counter++);
