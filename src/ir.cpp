@@ -1,5 +1,6 @@
 #include "../include/ir.hpp"
 #include <cassert>
+#include <cstddef>
 #include <type_traits>
 #include <variant>
 
@@ -48,7 +49,9 @@ void Program::Dump(std::ostream& os) const {
 }
 
 void Function::Dump(std::ostream& os) const {
-    os << "fun " << name << "(): i32 {\n";
+    os << "fun " << name << "()";
+    if (ret_type->kind == Type::INTEGER) os << ": i32"; 
+    os << " {\n";
     for (auto basic_block = blocks.rbegin(); basic_block != blocks.rend(); basic_block++) {
         (*basic_block)->Dump(os);
     }
@@ -74,13 +77,19 @@ bool BasicBlock::has_terminator() const {
 
 void Value::Dump(std::ostream& os) const {
     // check `kind` type, making `name` output
-    if (!name.empty() && 
-        (
-            std::holds_alternative<Binary>(kind) ||
-            std::holds_alternative<Alloc>(kind) ||
-            std::holds_alternative<Load>(kind)
-        )
+    bool assignment = false;
+    if (std::holds_alternative<Binary>(kind) ||
+        std::holds_alternative<Alloc>(kind) ||
+        std::holds_alternative<Load>(kind)
     ) {
+        assignment = true;
+    } 
+    else if (const auto* call_info = std::get_if<Call>(&kind)) {
+        if (call_info->ret_type && 
+            call_info->ret_type->kind != Type::VOID
+        ) assignment = true;
+    }
+    if (!name.empty() && assignment) {
         os << name << " = ";
     }
 
@@ -126,6 +135,15 @@ void Value::Dump(std::ostream& os) const {
             os << ", " << arg.false_bb->name;
         } else if constexpr (std::is_same_v<T, Jump>) {
             os << "jump " << arg.target_bb->name;
+        } else if constexpr (std::is_same_v<T, Call>) {
+            os << "call " << arg.ident << "(";
+            for (size_t i = 0; i < arg.args.size(); ++i) {
+                arg.args[i]->Dump(os);
+                if (i < arg.args.size() - 1) {
+                    os << ", ";
+                }
+            }
+            os << ")";
         }
     }, kind);
 }

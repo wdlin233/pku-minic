@@ -21,24 +21,35 @@ class VarDefAST;
 
 class CompUnitAST : public BaseAST {
     public:
-        std::unique_ptr<FuncDefAST> func_def;
+        std::vector<std::unique_ptr<FuncDefAST>> func_defs;
+};
+
+class FuncFParamAST : public BaseAST {
+    public:
+        enum Type {
+            TYPE_INT
+        }; 
+        Type type;
+        std::string ident;
 };
 
 class FuncDefAST : public BaseAST {
     public:
         std::unique_ptr<FuncTypeAST> func_type;
         std::string ident;
+        std::vector<std::unique_ptr<FuncFParamAST>> params;
         std::unique_ptr<BlockAST> block;
 };
 
 class FuncTypeAST : public BaseAST {
     public:
         enum Type {
-            TYPE_INT
+            TYPE_INT,
+            TYPE_VOID
         };
         Type type;
         explicit FuncTypeAST(Type t) : type(t) {};
-    };
+};
 
 class ExprAST : public BaseAST {};
 
@@ -60,6 +71,12 @@ class UnaryExprAST : public ExprAST {
     public:
         char op;
         std::unique_ptr<ExprAST> operand;
+};
+
+class FuncCallAST : public ExprAST {
+    public:
+        std::string ident; // function name
+        std::vector<std::unique_ptr<ExprAST>> params; 
 };
 
 class BlockItemAST : public BaseAST {};

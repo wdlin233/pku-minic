@@ -9,10 +9,16 @@
 #include <vector>
 #include <stack>
 
+struct FunctionSymbolInfo {
+    FuncTypeAST::Type ret_type;
+    std::vector<FuncFParamAST*> params;
+};
+
 struct SymbolInfo {
     // for constant storing its int value
     // for variable storing raw pointer
-    std::variant<int, const Value*> kind;
+    // for function storing its ret_type and params
+    std::variant<int, const Value*, FunctionSymbolInfo> kind;
 };
 
 using SymbolTable = std::unordered_map<std::string, SymbolInfo>;
@@ -48,6 +54,7 @@ class IRGenerator {
         int while_counter = -1;
 
         // Stack of Symbol Tables
+        // symbol_tables[0] store all function definitions 
         std::vector<SymbolTable> symbol_tables;
         std::unordered_map<std::string, int> name_counters;
         const SymbolInfo* find_symbol(const std::string sym);

@@ -1,6 +1,5 @@
 #pragma once
 
-#include <algorithm>
 #include <cassert>
 #include <cstdint>
 #include <iostream>
@@ -19,7 +18,8 @@ struct Binary;
 
 struct Type {
     enum Kind {
-        INTEGER,      
+        INTEGER,
+        VOID,     
     };
     Kind kind;
 };
@@ -73,6 +73,12 @@ struct Value {
         const BasicBlock* target_bb;
     };
 
+    struct Call {
+        std::string ident; // callee func name
+        std::vector<std::unique_ptr<Value>> args;
+        std::unique_ptr<Type> ret_type;
+    };
+
     using Kind = std::variant<
         Integer,
         Return,
@@ -82,7 +88,8 @@ struct Value {
         Load,
         Store,
         Branch,
-        Jump
+        Jump,
+        Call
     >;
     Kind kind;
 
@@ -95,6 +102,7 @@ struct Value {
     Value(Store store) : kind(std::move(store)) {}
     Value(Branch branch) : kind(std::move(branch)) {}
     Value(Jump jump) : kind(std::move(jump)) {}
+    Value(Call call) : kind(std::move(call)) {}
 
     explicit Value(int val) : kind(Integer{val}) {
         type = std::make_unique<Type>();
@@ -119,6 +127,7 @@ struct BasicBlock {
 struct Function {
     std::string name;
     std::unique_ptr<Type> ret_type;
+    std::vector<std::unique_ptr<Value>> params;
     std::vector<std::unique_ptr<BasicBlock>> blocks;
 
     void Dump(std::ostream& os) const;

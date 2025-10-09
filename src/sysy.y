@@ -38,54 +38,105 @@ extern YYLTYPE yylloc;
   int int_val;
   BaseAST *ast_val;
   std::vector<std::unique_ptr<ConstDefAST>> *vec_defs;
-  std::vector<std::unique_ptr<BlockItemAST>> *vec_items;
   std::vector<std::unique_ptr<VarDefAST>> *vec_var_defs;
+  std::vector<std::unique_ptr<BlockItemAST>> *vec_items;
+  std::vector<std::unique_ptr<FuncDefAST>> *vec_func_defs;
+  std::vector<std::unique_ptr<FuncFParamAST>> *vec_f_params;
+  std::vector<std::unique_ptr<ExprAST>> *vec_r_params;
 }
 
 %locations
 
 // lexer 返回的所有 token 种类的声明
-%token INT RETURN CONST IF ELSE WHILE BREAK CONTINUE
+%token INT VOID RETURN CONST IF ELSE WHILE BREAK CONTINUE
 %token T_LE T_GE T_EQ T_NE T_LAND T_LOR
 %token <str_val> IDENT
 %token <int_val> INT_CONST
 
 // 非终结符的类型定义
-%type <ast_val> FuncDef FuncType Block BlockItem Number 
+%type <ast_val> CompUnit FuncDef FuncType Block BlockItem Number 
 %type <ast_val> Exp PrimaryExp AddExp MulExp UnaryExp RelExp EqExp LAndExp LOrExp
 %type <ast_val> Decl ConstDecl ConstDef ConstInitVal VarDecl VarDef InitVal LVal ConstExp
 %type <ast_val> Stmt OpenStmt ClosedStmt OtherStmt
+%type <ast_val> FuncFParam
 %type <vec_defs> ConstDefList
 %type <vec_items> BlockItemList
 %type <vec_var_defs> VarDefList
+%type <vec_func_defs> FuncDefList
+%type <vec_f_params> FuncFParams // 函数形参列表
+%type <vec_r_params> FuncRParams // 函数实参列表
 
 %%
 
 // 此处的 ast 是 yyparse 函数的参数，在 %parse-param 中定义了其为 std::unique_ptr
-// CompUnit ::= FuncDef;
+// CompUnit ::= [CompUnit] FuncDef;
 CompUnit
+  : FuncDefList {
+    auto comp_unit = std::make_unique<CompUnitAST>();
+    comp_unit->func_defs = std::move(*$1);
+    delete $1;
+    ast = std::move(comp_unit);
+  }
+  ;
+  
+FuncDefList
   : FuncDef {
-    auto comp_unit = make_unique<CompUnitAST>();
-    comp_unit->func_def = unique_ptr<FuncDefAST>(static_cast<FuncDefAST*>($1));
-    ast = move(comp_unit);
+    auto list = new std::vector<std::unique_ptr<FuncDefAST>>(); 
+    list->push_back(std::unique_ptr<FuncDefAST>(static_cast<FuncDefAST*>($1)));
+    $$ = list;
+  }
+  | FuncDefList FuncDef {
+    $1->push_back(std::unique_ptr<FuncDefAST>(static_cast<FuncDefAST*>($2)));
+    $$ = $1;
   }
   ;
 
-// FuncDef ::= FuncType IDENT "(" ")" Block;
+// FuncDef ::= FuncType IDENT "(" [FuncFParams] ")" Block;
 FuncDef
   : FuncType IDENT '(' ')' Block {
     auto ast = new FuncDefAST();
     ast->func_type = unique_ptr<FuncTypeAST>(static_cast<FuncTypeAST*>($1));
-    ast->ident = *unique_ptr<string>($2);
+    ast->ident = *unique_ptr<std::string>($2);
     ast->block = unique_ptr<BlockAST>(static_cast<BlockAST*>($5));
+    $$ = ast;
+  }
+  | FuncType IDENT '(' FuncFParams ')' Block {
+    auto ast = new FuncDefAST();
+    ast->func_type = unique_ptr<FuncTypeAST>(static_cast<FuncTypeAST*>($1));
+    ast->ident = *unique_ptr<std::string>($2);
+    ast->params = std::move(*$4);
+    delete $4;
+    ast->block = unique_ptr<BlockAST>(static_cast<BlockAST*>($6));
     $$ = ast;
   }
   ;
 
-// FuncType ::= "int";
+// FuncType ::= "void" | "int";
 FuncType
-  : INT {
-    $$ = new FuncTypeAST(FuncTypeAST::Type::TYPE_INT);
+  : INT { $$ = new FuncTypeAST(FuncTypeAST::Type::TYPE_INT); }
+  | VOID { $$ = new FuncTypeAST(FuncTypeAST::Type::TYPE_VOID); }
+  ;
+
+// FuncFParams ::= FuncFParam {"," FuncFParam};
+FuncFParams
+  : FuncFParam {
+    auto list = new std::vector<std::unique_ptr<FuncFParamAST>>();
+    list->push_back(std::unique_ptr<FuncFParamAST>(static_cast<FuncFParamAST*>($1)));
+    $$ = list;
+  }
+  | FuncFParams ',' FuncFParam {
+    $1->push_back(std::unique_ptr<FuncFParamAST>(static_cast<FuncFParamAST*>($3)));
+    $$ = $1;
+  }
+  ;
+
+// FuncFParam ::= BType IDENT;
+FuncFParam
+  : BType IDENT {
+    auto param = new FuncFParamAST();
+    param->type = FuncFParamAST::Type::TYPE_INT;
+    param->ident = *std::unique_ptr<std::string>($2);
+    $$ = param;
   }
   ;
 
@@ -156,7 +207,7 @@ ConstDefList
 ConstDef
   : IDENT '=' ConstInitVal {
     auto ast = new ConstDefAST();
-    ast->ident = *unique_ptr<string>($1);
+    ast->ident = *unique_ptr<std::string>($1);
     ast->init_val = unique_ptr<ExprAST>(static_cast<ExprAST*>($3));
     $$ = ast;
   }
@@ -198,14 +249,14 @@ VarDefList
 VarDef 
   : IDENT {
     auto ast = new VarDefAST();
-    ast->ident = *unique_ptr<string>($1);
+    ast->ident = *unique_ptr<std::string>($1);
     ast->init_val = std::nullopt;
     $$ = ast;
   }
   | IDENT '=' InitVal {
     auto ast = new VarDefAST();
-    ast->ident = *unique_ptr<string>($1);
-    ast->init_val = make_optional<std::unique_ptr<ExprAST>>(static_cast<ExprAST*>($3));
+    ast->ident = *unique_ptr<std::string>($1);
+    ast->init_val = std::make_optional<std::unique_ptr<ExprAST>>(static_cast<ExprAST*>($3));
     $$ = ast;
   }
   ;
@@ -226,7 +277,7 @@ PrimaryExp
 LVal
   : IDENT {
     auto ast = new LValAST();
-    ast->ident = *unique_ptr<string>($1);
+    ast->ident = *unique_ptr<std::string>($1);
     $$ = ast;
   }
   ;
@@ -453,7 +504,7 @@ MulExp
   }
   ;
 
-// UnaryExp ::= PrimaryExp | UnaryOp UnaryExp;
+// UnaryExp ::= PrimaryExp | UnaryOp UnaryExp | IDENT "(" [FuncRParams] ")";
 UnaryExp
   : PrimaryExp { $$ = $1; }
   | '+' UnaryExp {
@@ -473,6 +524,31 @@ UnaryExp
     expr->op = '!';
     expr->operand = std::unique_ptr<ExprAST>(static_cast<ExprAST*>($2));
     $$ = expr;
+  }
+  | IDENT '(' ')' {
+    auto call = new FuncCallAST();
+    call->ident = *std::unique_ptr<std::string>($1);
+    $$ = call;
+  }
+  | IDENT '(' FuncRParams ')' {
+    auto call = new FuncCallAST();
+    call->ident = *std::unique_ptr<std::string>($1);
+    call->params = std::move(*$3);
+    delete $3;
+    $$ = call;
+  }
+  ;
+
+// FuncRParams ::= Exp {"," Exp};
+FuncRParams
+  : Exp {
+    auto list = new std::vector<std::unique_ptr<ExprAST>>();
+    list->push_back(std::unique_ptr<ExprAST>(static_cast<ExprAST*>($1)));
+    $$ = list;
+  }
+  | FuncRParams ',' Exp {
+    $1->push_back(std::unique_ptr<ExprAST>(static_cast<ExprAST*>($3)));
+    $$ = $1;
   }
   ;
 

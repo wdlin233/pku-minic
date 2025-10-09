@@ -1,17 +1,37 @@
 #include "../include/generator.hpp"
 #include "sysy.tab.hpp"
-#include <algorithm>
 #include <cassert>
+#include <cstdlib>
 #include <iostream>
 #include <memory>
 #include <ostream>
 #include <string>
 #include <utility>
 #include <variant>
+#include <vector>
 
 std::unique_ptr<Program> IRGenerator::Generate(const CompUnitAST& ast) {
     program = std::make_unique<Program>();
-    visit(*ast.func_def);
+    
+    enter_scope(); // enter global scope
+
+    for (const auto& func_def : ast.func_defs) {
+        if (symbol_tables[0].count(func_def->ident)) {
+            std::cerr << "Semantic Error: Redefintion Function." << std::endl;
+            exit(1);
+        }
+        FunctionSymbolInfo info;
+        info.ret_type = func_def->func_type->type;
+        for (const auto& param : func_def->params) {
+            info.params.push_back(param.get());
+        }
+        symbol_tables[0][func_def->ident] = SymbolInfo{info};
+    }
+    for (const auto& func : ast.func_defs) {
+        visit(*func);
+    }
+
+    exit_scope();
     return std::move(program);
 }
 
@@ -19,19 +39,31 @@ void IRGenerator::visit(const FuncDefAST& func_def) {
     auto func = std::make_unique<Function>();
     func->name = "@" + func_def.ident;
     func->ret_type = std::make_unique<Type>();
-    func->ret_type->kind = Type::INTEGER;
-    
+    func->ret_type->kind = static_cast<Type::Kind>(func_def.func_type->type);
     auto bb = std::make_unique<BasicBlock>();
     bb->name = "%entry";
 
+    enter_scope();
+    
+    std::vector<const Value*> params;
+    for (const auto& param : func_def.params) {
+        auto alloc_inst = std::make_unique<Value>(Value::Alloc{});
+        alloc_inst->name = "@" + param->ident;
+        const Value* param_ptr = alloc_inst.get();
+        
+        func->params.push_back(std::move(alloc_inst));
+        symbol_tables.back()[param->ident] = SymbolInfo{param_ptr};
+        params.push_back(param_ptr);
+    }
+
     current_function = func.get();
     current_bb = bb.get();
-
     name_counters.clear();
-    enter_scope();
+
     for (const auto& item: func_def.block->items) {
         visit(*item);
     }
+
     exit_scope();
     
     func->blocks.push_back(std::move(bb)); // push basic block into basic blocks
@@ -603,7 +635,32 @@ std::unique_ptr<Value> IRGenerator::visit(const ExprAST& expr) {
             
             return std::make_unique<Value>(Value::SymbolRef{result_ptr});
         }
+    }
 
+    if (auto call = dynamic_cast<const FuncCallAST*>(&expr)) {
+        const SymbolInfo* info = find_symbol(call->ident);
+        assert(info && "Undefined function call");
+        assert(std::holds_alternative<FunctionSymbolInfo>(info->kind) && "Calling non-function");
+        const FunctionSymbolInfo& func_info = std::get<FunctionSymbolInfo>(info->kind);
+        
+        std::vector<std::unique_ptr<Value>> args;
+        for (const auto& param_expr : call->params) {
+            std::unique_ptr<Value> arg_val = visit(*param_expr);
+            args.push_back(std::move(arg_val));
+        }
+
+        auto call_inst = std::make_unique<Value>(
+            Value::Call{"@" + call->ident, std::move(args), std::make_unique<Type>(Type{Type::INTEGER})}
+        );
+        if (func_info.ret_type == FuncTypeAST::TYPE_INT) {
+            call_inst->name = new_temp_var_name();
+            const Value* result_ptr = call_inst.get();
+            current_bb->insts.push_back(std::move(call_inst));
+            return std::make_unique<Value>(Value::SymbolRef{result_ptr});
+        } else {
+            current_bb->insts.push_back(std::move(call_inst));
+            return nullptr;
+        }
     }
     
     assert(false && "Unknown expression type");
