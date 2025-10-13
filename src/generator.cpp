@@ -4,6 +4,7 @@
 #include <cstdlib>
 #include <iostream>
 #include <memory>
+#include <optional>
 #include <ostream>
 #include <string>
 #include <utility>
@@ -62,6 +63,20 @@ void IRGenerator::visit(const FuncDefAST& func_def) {
 
     for (const auto& item: func_def.block->items) {
         visit(*item);
+    }
+
+    if (!current_bb->has_terminator()) {
+        if (current_function->ret_type->kind == Type::VOID) {
+            // implicit return
+            auto ret_inst = std::make_unique<Value>(Value::Return{std::nullopt});
+            current_bb->insts.push_back(std::move(ret_inst));
+        } else {
+            // UB, undefine behavior
+            // return default value 0
+            auto ret_val = std::make_unique<Value>(Value::Integer{0});
+            auto ret_inst = std::make_unique<Value>(Value::Return{ std::move(ret_val) });
+            current_bb->insts.push_back(std::move(ret_inst));
+        }
     }
 
     exit_scope();
@@ -289,7 +304,8 @@ void IRGenerator::visit(const ReturnStmtAST& return_stmt) {
     if (return_stmt.expression.has_value()) {
         ret_val = visit(*return_stmt.expression.value());
     } else {
-        ret_val = std::make_unique<Value>(Value::Integer{0});
+        std::cerr << "Semantic Error: Return stmt is nullopt." << std::endl;
+        exit(1);
     }
     auto ret_inst = std::make_unique<Value>(
         Value::Return{ std::move(ret_val) }

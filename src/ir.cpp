@@ -50,7 +50,7 @@ void Program::Dump(std::ostream& os) const {
 
 void Function::Dump(std::ostream& os) const {
     os << "fun " << name << "()";
-    if (ret_type->kind == Type::INTEGER) os << ": i32"; 
+    if (ret_type->kind != Type::VOID) os << ": i32"; 
     os << " {\n";
     for (auto basic_block = blocks.rbegin(); basic_block != blocks.rend(); basic_block++) {
         (*basic_block)->Dump(os);
@@ -99,11 +99,14 @@ void Value::Dump(std::ostream& os) const {
             os << arg.value;
         } else if constexpr (std::is_same_v<T, Return>) {
             os << "ret ";
-            if (!arg.value->name.empty() && !std::holds_alternative<Integer>(arg.value->kind)) {
+            if (!arg.value.has_value()) {
+                return;
+            }
+            if (!arg.value.value()->name.empty() && !std::holds_alternative<Integer>(arg.value.value()->kind)) {
                 // e.g. ret %2
-                os << arg.value->name;
+                os << arg.value.value()->name;
             } else {
-                arg.value->Dump(os);
+                arg.value.value()->Dump(os);
             }
         } else if constexpr (std::is_same_v<T, Binary>) {
             os << op_to_string(arg.op) << " ";

@@ -4,6 +4,7 @@
 #include <cstdint>
 #include <iostream>
 #include <memory>
+#include <optional>
 #include <ostream>
 #include <string>
 #include <utility>
@@ -34,8 +35,7 @@ struct Value {
         Integer(int32_t v) : value(v) {}
     };
     struct Return { 
-        std::unique_ptr<Value> value; 
-        Return(std::unique_ptr<Value> v) : value(std::move(v)) {}
+        std::optional<std::unique_ptr<Value>> value; 
     };
 
     struct Binary {
