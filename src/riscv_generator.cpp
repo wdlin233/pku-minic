@@ -45,6 +45,12 @@ void FrameAllocator::analyze(const Function& func) {
             }
 
             // Determine if the instruction produces a value that needs to be stored on the stack
+            // 如果我将函数的参数保存在局部变量区，会把十个变量写在一起。
+            // 但是如果并不保存局部变量，8个参数在寄存器，剩下两个参数在调用者的栈帧底部。
+            // 保存局部变量区并不是必须的，甚至栈帧也不是必要的
+            // 当前寄存器的策略是为每一条指令的结果都 alloc 局部变量空间，spill-all 策略
+            // 不过，当前的后端没有把函数参数主动保存在 local_slot 中
+            // 但是，对于变量 @x 的 store @x, %0 的 IR，还是 sw 到 %0 的 local_slot 里，所以还是写进了 local_slot
             bool need_slot = std::holds_alternative<Value::Binary>(inst->kind) ||
                              std::holds_alternative<Value::Alloc>(inst->kind) ||
                              std::holds_alternative<Value::Load>(inst->kind) ||

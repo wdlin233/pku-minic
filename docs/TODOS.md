@@ -10,3 +10,4 @@
 - [ ] 整理 current_stask_offset 的相关逻辑
 - [ ] 更优雅的 `void IRGenerator::visit(const StmtAST& stmt)`
 - [ ] 将 `symbol_tables` 改为使用 Stack
+- [ ] 改掉固定 t0 分配
