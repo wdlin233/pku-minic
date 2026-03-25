@@ -40,26 +40,48 @@ void IRGenerator::visit(const FuncDefAST& func_def) {
     auto func = std::make_unique<Function>();
     func->name = "@" + func_def.ident;
     func->ret_type = std::make_unique<Type>();
-    func->ret_type->kind = static_cast<Type::Kind>(func_def.func_type->type);
+    if (func_def.func_type->type == FuncTypeAST::TYPE_VOID) {
+        func->ret_type->kind = Type::VOID;
+    } else {
+        func->ret_type->kind = Type::INTEGER;
+    }
+    
     auto bb = std::make_unique<BasicBlock>();
     bb->name = "%entry";
-
-    enter_scope();
-    
-    std::vector<const Value*> params;
-    for (const auto& param : func_def.params) {
-        auto alloc_inst = std::make_unique<Value>(Value::Alloc{});
-        alloc_inst->name = "@" + param->ident;
-        const Value* param_ptr = alloc_inst.get();
-        
-        func->params.push_back(std::move(alloc_inst));
-        symbol_tables.back()[param->ident] = SymbolInfo{param_ptr};
-        params.push_back(param_ptr);
-    }
 
     current_function = func.get();
     current_bb = bb.get();
     name_counters.clear();
+
+    enter_scope();
+    
+    for (const auto& param : func_def.params) {
+        // 1. Function Argument
+        auto arg = std::make_unique<Value>(Value::Argument{});
+        arg->name = "@" + param->ident;
+        arg->type = std::make_unique<Type>();
+        arg->type->kind = Type::INTEGER;
+        const Value* arg_ptr = arg.get();
+        func->params.push_back(std::move(arg));
+
+        // 2. Allocate stack space
+        auto alloc = std::make_unique<Value>(Value::Alloc{});
+        alloc->name = new_temp_var_name();
+        alloc->type = std::make_unique<Type>();
+        alloc->type->kind = Type::INTEGER;
+        const Value* alloc_ptr = alloc.get();
+        current_bb->insts.push_back(std::move(alloc));
+
+        // 3. Store argument to stack
+        auto store_val = std::make_unique<Value>(Value::SymbolRef{arg_ptr});
+        auto store = std::make_unique<Value>(Value::Store{std::move(store_val), alloc_ptr});
+        current_bb->insts.push_back(std::move(store));
+
+        // 4. Update symbol table
+        SymbolInfo info;
+        info.kind = alloc_ptr;
+        symbol_tables.back()[param->ident] = info;
+    }
 
     for (const auto& item: func_def.block->items) {
         visit(*item);

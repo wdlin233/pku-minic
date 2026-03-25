@@ -49,9 +49,21 @@ void Program::Dump(std::ostream& os) const {
 }
 
 void Function::Dump(std::ostream& os) const {
-    os << "fun " << name << "()";
-    if (ret_type->kind != Type::VOID) os << ": i32"; 
+    os << "fun " << name << "(";
+    for (size_t i = 0; i < params.size(); ++i) {
+        os << params[i]->name << ": i32";
+        if (i != params.size() - 1) {
+            os << ", ";
+        }
+    }
+    os << ")";
+
+    if (ret_type && ret_type->kind != Type::VOID) {
+        os << ": i32";
+    }
+
     os << " {\n";
+    // output basic blocks in reverse order to keep %entry in front
     for (auto basic_block = blocks.rbegin(); basic_block != blocks.rend(); basic_block++) {
         (*basic_block)->Dump(os);
     }
@@ -147,6 +159,8 @@ void Value::Dump(std::ostream& os) const {
                 }
             }
             os << ")";
+        } else if constexpr (std::is_same_v<T, Argument>) {
+            os << name;
         }
     }, kind);
 }

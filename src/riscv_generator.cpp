@@ -50,7 +50,7 @@ void RISCVGenerator::visit(const Value& value, std::ostream& os) {
         } 
         else if constexpr (std::is_same_v<T, Value::Return>) {
             if (arg.value) {
-                load_value_to_reg(arg.value.get(), "a0", os);
+                load_value_to_reg(arg.value.value().get(), "a0", os);
             }
             // Epilogue
             if (current_stack_offset < 0) {

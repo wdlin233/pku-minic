@@ -23,6 +23,8 @@ struct Type {
         VOID,     
     };
     Kind kind;
+
+    void Dump(Kind kind);
 };
 
 // also instruction
@@ -79,6 +81,10 @@ struct Value {
         std::unique_ptr<Type> ret_type;
     };
 
+    struct Argument {
+        // Argument doesn't need extra data, just name and type in Value
+    };
+
     using Kind = std::variant<
         Integer,
         Return,
@@ -89,7 +95,8 @@ struct Value {
         Store,
         Branch,
         Jump,
-        Call
+        Call,
+        Argument
     >;
     Kind kind;
 
@@ -103,6 +110,8 @@ struct Value {
     Value(Branch branch) : kind(std::move(branch)) {}
     Value(Jump jump) : kind(std::move(jump)) {}
     Value(Call call) : kind(std::move(call)) {}
+    Value(Argument arg) : kind(std::move(arg)) {}
+
 
     explicit Value(int val) : kind(Integer{val}) {
         type = std::make_unique<Type>();
