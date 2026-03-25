@@ -325,3 +325,32 @@ void IRGenerator::visit(const BlockItemAST& item) {
 首先对引用 `item` 进行取地址操作 `&item`，得到被引用对象的原始指针. 然后将这个**基类指针**尝试向下转型为派生类 `StmtAST` 的**指针**，转型成功后 `*stmt` 对指针解引用，以引用类型传入 `visit` 的参数表.
 
 解引用指针得到了一个对象，将对象以引用的方式传递给 `visit` 函数，由此避免了对 `StmtAST` 的任何拷贝.
+
+### 空指针解引用问题
+
+```shell
+root@43bfafd27d7d:~/compiler# ./build/compiler -koopa /opt/bin/testcases/lv8/00_int_func.c -o temp.s
+AddressSanitizer:DEADLYSIGNAL
+=================================================================
+==790==ERROR: AddressSanitizer: SEGV on unknown address 0x000000000008 (pc 0x0000004f3b62 bp 0x7ffd3b627750 sp 0x7ffd3b627720 T0)
+==790==The signal is caused by a READ memory access.
+==790==Hint: address points to the zero page.
+```
+
+首先 `0x000000000008` 是一个接近 `NULL(0x0)` 的值. 访存地址可以视为 `NULL` + `offsetof(member)`，猜测访问的是第二个成员.
+
+实际上是因为 `$$` 和 `%parse-param` 不同，`$$` 是向上一层语法规则传值的，`%parse-param` 是向调用者传递最终结果的. 原本我对于 `CompUnit` 规则写 `$$`，但是它没有更上层的语法规则了，所以 `yyparse()` 得到的是 `nullptr`.
+
+使用 `std::move` 报错：
+
+```shell
+/root/compiler/src/sysy.y:78:9: error: no viable overloaded '='
+    ast = std::move(comp_unit);
+    ~~~ ^ ~~~~~~~~~~~~~~~~~~~~
+/usr/bin/.../include/c++/9/bits/unique_ptr.h:305:7: note: candidate function not viable: no known conversion from 'typename std::remove_reference<CompUnitAST *&>::type' (aka 'CompUnitAST *') to 'std::unique_ptr<BaseAST>' for 1st argument
+    operator=(unique_ptr&& __u) noexcept
+```
+
+`new` 表达式返回一个裸指针，然后用 `std::move` 实现到 `std::unique_ptr<BaseAST>` 的转换. 但是裸指针到 `std::unique_ptr` 的隐式转换是被禁用的.
+
+要么使用 `std::make_unique<CompUnitAST>()` 和 `ast = std::move(comp_unit)`，要么使用 `new CompUnitAST()` 和 `ast.reset(comp_unit)`. `reset()` 是 `unique_ptr` 专门用于接管新指针的方法. 
