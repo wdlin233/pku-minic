@@ -15,7 +15,24 @@ void FrameAllocator::analyze(const Function& func) {
     ra_offset_ = -1;
     save_ra_ = false;
 
-    int local_size = 0;
+    /*
+    高地址 (栈底, 原来的 sp)
+    +-------------------------+ 
+    | 补齐对齐的 padding      | <- 这里加上对齐的字节，得到最终的 frame_size_
+    +-------------------------+ 
+    | 保存的寄存器 (如 ra)    | <- 占用 4 字节，起始偏移为 ra_offset_
+    +-------------------------+ <- 此时的 offset 为 total = outgoing_size_ + local_size
+    |                         | 
+    | 局部变量与临时值存放区  | <- 总大小为 local_size
+    | (Local Slots)           | 
+    +-------------------------+ <- 起始偏移为 locals_base_ (= outgoing_size_)
+    | 调用其他函数使用的参数区|
+    | (Outgoing Arguments)    | <- 总大小为 outgoing_size_
+    +-------------------------+ <- 最低地址 (此刻的 sp, offset = 0)
+    低地址 (栈顶)
+    */
+
+    int local_size = 0; // 统计所有 Koopa 指令所需要的临时存储空间的总和
     for (const auto& bb : func.blocks) {
         for (const auto& inst : bb->insts) {
             if (std::holds_alternative<Value::Call>(inst->kind)) {
@@ -27,6 +44,7 @@ void FrameAllocator::analyze(const Function& func) {
                 }
             }
 
+            // Determine if the instruction produces a value that needs to be stored on the stack
             bool need_slot = std::holds_alternative<Value::Binary>(inst->kind) ||
                              std::holds_alternative<Value::Alloc>(inst->kind) ||
                              std::holds_alternative<Value::Load>(inst->kind) ||
@@ -34,6 +52,7 @@ void FrameAllocator::analyze(const Function& func) {
                               std::get<Value::Call>(inst->kind).ret_type &&
                               std::get<Value::Call>(inst->kind).ret_type->kind != Type::VOID);
             if (need_slot) {
+                // Assign a relative slot offset for this instruction's result
                 local_slot_offsets_[inst.get()] = local_size;
                 local_size += 4;
             }
@@ -50,11 +69,16 @@ void FrameAllocator::analyze(const Function& func) {
     frame_size_ = (total + 15) & ~15;
 }
 
+// outgoing args offset relative to sp pointer, sp+0, sp+4, ...
 int FrameAllocator::outgoing_arg_offset(int arg_index) const {
     assert(arg_index >= 8);
     return (arg_index - 8) * 4;
 }
 
+// incoming args offset relative to sp pointer,
+// NOT in the same stackframe of current function
+// refer to the previous function(Caller) stackframe
+// please see: https://pku-minic.github.io/online-doc/lv8-func-n-global/call-with-10-args.png
 int FrameAllocator::incoming_arg_offset(int arg_index) const {
     assert(arg_index >= 8);
     return frame_size_ + (arg_index - 8) * 4;

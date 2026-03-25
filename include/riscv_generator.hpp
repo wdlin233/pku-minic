@@ -20,8 +20,8 @@ class FrameAllocator {
     private:
         std::unordered_map<const Value*, int> local_slot_offsets_;
         int frame_size_ = 0;
-        int outgoing_size_ = 0;
-        int locals_base_ = 0;
+        int outgoing_size_ = 0; // 分配在栈的最底部，用于存放当前函数调用其他函数超过 8 个时，存放传递给子函数的第 9, 10 个参数
+        int locals_base_ = 0; // 局部变量区在栈上的基址偏移，相对于 sp 指针
         int ra_offset_ = -1;
         bool save_ra_ = false;
 };
