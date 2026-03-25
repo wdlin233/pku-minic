@@ -68,7 +68,7 @@ void IRGenerator::visit(const FuncDefAST& func_def) {
         auto alloc = std::make_unique<Value>(Value::Alloc{});
         alloc->name = new_temp_var_name();
         alloc->type = std::make_unique<Type>();
-        alloc->type->kind = Type::INTEGER;
+        alloc->type->kind = Type::POINTER;
         const Value* alloc_ptr = alloc.get();
         current_bb->insts.push_back(std::move(alloc));
 
@@ -164,7 +164,7 @@ void IRGenerator::visit(const VarDeclAST& var_decl) {
         auto alloc_inst = std::make_unique<Value>(Value::Alloc{});
         alloc_inst->name = "@" + base_name + '_' + std::to_string(name_counters[base_name]);  // @x_1 = alloc i32
         alloc_inst->type = std::make_unique<Type>();
-        alloc_inst->type->kind = Type::INTEGER;
+        alloc_inst->type->kind = Type::POINTER;
 
         const Value* var_ptr = alloc_inst.get();
         current_bb->insts.push_back(std::move(alloc_inst));
@@ -309,6 +309,7 @@ void IRGenerator::visit(const AssignStmtAST& assign_stmt) {
     } else {
         // variable
         const Value* var_ptr = std::get<const Value*>(info->kind);
+        assert(var_ptr->type && var_ptr->type->kind == Type::POINTER && "LVal must resolve to an address");
         auto rval = visit(*assign_stmt.expression);
         auto store_inst = std::make_unique<Value>(
             Value::Store{std::move(rval), var_ptr}
@@ -663,6 +664,7 @@ std::unique_ptr<Value> IRGenerator::visit(const ExprAST& expr) {
         } else {
             // variable
             const Value* var_ptr = std::get<const Value*>(info->kind);
+            assert(var_ptr->type && var_ptr->type->kind == Type::POINTER && "Variable symbol must be an address");
             auto load_inst = std::make_unique<Value>(Value::Load{var_ptr});
             load_inst->name = new_temp_var_name();
             load_inst->type = std::make_unique<Type>();

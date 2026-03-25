@@ -20,6 +20,7 @@ struct Binary;
 struct Type {
     enum Kind {
         INTEGER,
+        POINTER,
         VOID,     
     };
     Kind kind;
@@ -76,7 +77,7 @@ struct Value {
     };
 
     struct Call {
-        std::string ident; // callee func name
+        std::string ident; // callee func name, @funcname
         std::vector<std::unique_ptr<Value>> args;
         std::unique_ptr<Type> ret_type;
     };
