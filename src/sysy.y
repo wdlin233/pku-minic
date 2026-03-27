@@ -40,7 +40,7 @@ extern YYLTYPE yylloc;
   std::vector<std::unique_ptr<ConstDefAST>> *vec_defs;
   std::vector<std::unique_ptr<VarDefAST>> *vec_var_defs;
   std::vector<std::unique_ptr<BlockItemAST>> *vec_items;
-  std::vector<std::unique_ptr<FuncDefAST>> *vec_func_defs;
+  std::vector<std::unique_ptr<BaseAST>> *vec_comp_items;
   std::vector<std::unique_ptr<FuncFParamAST>> *vec_f_params;
   std::vector<std::unique_ptr<ExprAST>> *vec_r_params;
 }
@@ -58,37 +58,54 @@ extern YYLTYPE yylloc;
 %type <ast_val> Exp PrimaryExp AddExp MulExp UnaryExp RelExp EqExp LAndExp LOrExp
 %type <ast_val> Decl ConstDecl ConstDef ConstInitVal VarDecl VarDef InitVal LVal ConstExp
 %type <ast_val> Stmt OpenStmt ClosedStmt OtherStmt
+%type <ast_val> CompItem
 %type <ast_val> FuncFParam
+%type <vec_comp_items> CompItemList
 %type <vec_defs> ConstDefList
 %type <vec_items> BlockItemList
 %type <vec_var_defs> VarDefList
-%type <vec_func_defs> FuncDefList
 %type <vec_f_params> FuncFParams // 函数形参列表
 %type <vec_r_params> FuncRParams // 函数实参列表
 
 %%
 
 // 此处的 ast 是 yyparse 函数的参数，在 %parse-param 中定义了其为 std::unique_ptr
-// CompUnit ::= [CompUnit] FuncDef;
+// CompUnit ::= [CompUnit] (Decl | FuncDef);
 CompUnit
-  : FuncDefList {
+  : CompItemList {
     auto comp_unit = std::make_unique<CompUnitAST>();
-    comp_unit->func_defs = std::move(*$1);
+    for (auto& item : *$1) {
+      BaseAST* raw = item.release();
+      if (auto* decl = dynamic_cast<DeclAST*>(raw)) {
+        comp_unit->decls.emplace_back(decl);
+      } else if (auto* func = dynamic_cast<FuncDefAST*>(raw)) {
+        comp_unit->func_defs.emplace_back(func);
+      } else {
+        delete raw;
+        yyerror(ast, "invalid top-level item");
+        YYABORT;
+      }
+    }
     delete $1;
     ast = std::move(comp_unit);
   }
   ;
   
-FuncDefList
-  : FuncDef {
-    auto list = new std::vector<std::unique_ptr<FuncDefAST>>(); 
-    list->push_back(std::unique_ptr<FuncDefAST>(static_cast<FuncDefAST*>($1)));
+CompItemList
+  : CompItem {
+    auto list = new std::vector<std::unique_ptr<BaseAST>>();
+    list->push_back(std::unique_ptr<BaseAST>($1));
     $$ = list;
   }
-  | FuncDefList FuncDef {
-    $1->push_back(std::unique_ptr<FuncDefAST>(static_cast<FuncDefAST*>($2)));
+  | CompItemList CompItem {
+    $1->push_back(std::unique_ptr<BaseAST>($2));
     $$ = $1;
   }
+  ;
+
+CompItem
+  : Decl { $$ = $1; }
+  | FuncDef { $$ = $1; }
   ;
 
 // FuncDef ::= FuncType IDENT "(" [FuncFParams] ")" Block;

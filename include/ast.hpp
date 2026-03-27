@@ -10,6 +10,7 @@ class BaseAST {
         virtual ~BaseAST() = default;
 };
 
+class DeclAST;
 class FuncDefAST;
 class FuncTypeAST;
 class BlockAST;
@@ -21,7 +22,8 @@ class VarDefAST;
 
 class CompUnitAST : public BaseAST {
     public:
-        std::vector<std::unique_ptr<FuncDefAST>> func_defs;
+    std::vector<std::unique_ptr<DeclAST>> decls;
+    std::vector<std::unique_ptr<FuncDefAST>> func_defs;
 };
 
 class FuncFParamAST : public BaseAST {
