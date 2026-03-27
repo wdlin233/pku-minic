@@ -42,9 +42,38 @@ const char* op_to_string(Value::Binary::Op op) {
 }
 
 void Program::Dump(std::ostream& os) const {
+    for (const auto& decl : decls) {
+        decl.Dump(os);
+        os << "\n";
+    }
+    if (!decls.empty() && !functions.empty()) {
+        os << "\n";
+    }
     for (const auto& func : functions) {
         func->Dump(os);
         os << "\n";
+    }
+}
+
+void FuncDecl::Dump(std::ostream& os) const {
+    auto dump_type = [&](Type::Kind k) {
+        if (k == Type::POINTER) {
+            os << "*i32";
+        } else {
+            os << "i32";
+        }
+    };
+
+    os << "decl " << name << "(";
+    for (size_t i = 0; i < param_types.size(); ++i) {
+        dump_type(param_types[i]);
+        if (i + 1 != param_types.size()) {
+            os << ", ";
+        }
+    }
+    os << ")";
+    if (ret_type != Type::VOID) {
+        os << ": i32";
     }
 }
 

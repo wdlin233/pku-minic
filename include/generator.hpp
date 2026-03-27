@@ -84,4 +84,6 @@ class IRGenerator {
         int evaluate_const_expr(const ExprAST& expr);
         void enter_scope();
         void exit_scope();
+
+        void register_builtin_functions();
 };

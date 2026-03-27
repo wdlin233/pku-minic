@@ -16,6 +16,8 @@ std::unique_ptr<Program> IRGenerator::Generate(const CompUnitAST& ast) {
     
     enter_scope(); // enter global scope
 
+    register_builtin_functions();
+
     for (const auto& func_def : ast.func_defs) {
         if (symbol_tables[0].count(func_def->ident)) {
             std::cerr << "Semantic Error: Redefintion Function." << std::endl;
@@ -689,8 +691,10 @@ std::unique_ptr<Value> IRGenerator::visit(const ExprAST& expr) {
             args.push_back(std::move(arg_val));
         }
 
+        Type::Kind call_ret_kind =
+            (func_info.ret_type == FuncTypeAST::TYPE_INT) ? Type::INTEGER : Type::VOID;
         auto call_inst = std::make_unique<Value>(
-            Value::Call{"@" + call->ident, std::move(args), std::make_unique<Type>(Type{Type::INTEGER})}
+            Value::Call{"@" + call->ident, std::move(args), std::make_unique<Type>(Type{call_ret_kind})}
         );
         if (func_info.ret_type == FuncTypeAST::TYPE_INT) {
             call_inst->name = new_temp_var_name();
@@ -748,4 +752,38 @@ void IRGenerator::enter_scope() {
 
 void IRGenerator::exit_scope() {
     symbol_tables.pop_back();
+}
+
+void IRGenerator::register_builtin_functions() {
+    struct BuiltinSpec {
+        const char* name;
+        FuncTypeAST::Type ret_type;
+        std::vector<Type::Kind> param_types;
+    };
+
+    const std::vector<BuiltinSpec> builtins = {
+        {"getint", FuncTypeAST::TYPE_INT, {}},
+        {"getch", FuncTypeAST::TYPE_INT, {}},
+        {"getarray", FuncTypeAST::TYPE_INT, {Type::POINTER}},
+        {"putint", FuncTypeAST::TYPE_VOID, {Type::INTEGER}},
+        {"putch", FuncTypeAST::TYPE_VOID, {Type::INTEGER}},
+        {"putarray", FuncTypeAST::TYPE_VOID, {Type::INTEGER, Type::POINTER}},
+        {"starttime", FuncTypeAST::TYPE_VOID, {}},
+        {"stoptime", FuncTypeAST::TYPE_VOID, {}},
+    };
+
+    for (const auto& spec : builtins) {
+        FunctionSymbolInfo info;
+        info.ret_type = spec.ret_type;
+        for (size_t i = 0; i < spec.param_types.size(); ++i) {
+            info.params.push_back(nullptr);
+        }
+        symbol_tables[0][spec.name] = SymbolInfo{info};
+
+        FuncDecl decl;
+        decl.name = "@" + std::string(spec.name);
+        decl.param_types = spec.param_types;
+        decl.ret_type = (spec.ret_type == FuncTypeAST::TYPE_INT) ? Type::INTEGER : Type::VOID;
+        program->decls.push_back(std::move(decl));
+    }
 }

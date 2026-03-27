@@ -17,6 +17,8 @@ struct Function;
 struct Program;
 struct Binary;
 
+struct FuncDecl;
+
 struct Type {
     enum Kind {
         INTEGER,
@@ -143,7 +145,16 @@ struct Function {
     void Dump(std::ostream& os) const;
 };
 
+struct FuncDecl {
+    std::string name; // function name with @ prefix
+    std::vector<Type::Kind> param_types;
+    Type::Kind ret_type = Type::VOID;
+
+    void Dump(std::ostream& os) const;
+};
+
 struct Program {
+    std::vector<FuncDecl> decls;
     std::vector<std::unique_ptr<Function>> functions;
 
     void Dump(std::ostream& os) const;
