@@ -354,3 +354,13 @@ AddressSanitizer:DEADLYSIGNAL
 `new` 表达式返回一个裸指针，然后用 `std::move` 实现到 `std::unique_ptr<BaseAST>` 的转换. 但是裸指针到 `std::unique_ptr` 的隐式转换是被禁用的.
 
 要么使用 `std::make_unique<CompUnitAST>()` 和 `ast = std::move(comp_unit)`，要么使用 `new CompUnitAST()` 和 `ast.reset(comp_unit)`. `reset()` 是 `unique_ptr` 专门用于接管新指针的方法. 
+
+### `FuncType` 和 `BType` 导致的 reduce-reduce conflict
+
+解析器在看到 INT 时无法确定是后续是变量还是函数，只能进入冲突状态。
+
+可以通过统一处理 `INT` / `VOID` + `IDENT` 而不是 `FuncType` 的方法绕开 (**规约**) 冲突，再定义 `VarDeclTop` 屏蔽对于 `BType` 的推理。
+
+这个方法称为 Common-Prefix Extraction.
+
+对于 `INT IDENT` 这种模式，不关心 BType / FuncType 的实现，而只是移进 INT、移进 IDENT、移进 TopAfterInt 来避免任何规约，就不会出现规约冲突。
