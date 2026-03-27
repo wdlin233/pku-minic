@@ -11,6 +11,7 @@
 #include <memory>
 #include <string>
 #include <optional>
+#include <cassert>
 #include "ast.hpp"
 #include "sysy.tab.hpp"
 
@@ -59,12 +60,13 @@ extern YYLTYPE yylloc;
 %type <ast_val> Decl ConstDecl ConstDef ConstInitVal VarDecl VarDef InitVal LVal ConstExp
 %type <ast_val> Stmt OpenStmt ClosedStmt OtherStmt
 %type <ast_val> CompItem
-%type <ast_val> VarDeclTop
+%type <ast_val> TopAfterInt FuncAfterIdent OptInitVal
 %type <ast_val> FuncFParam
 %type <vec_comp_items> CompItemList
 %type <vec_defs> ConstDefList
 %type <vec_items> BlockItemList
 %type <vec_var_defs> VarDefList
+%type <vec_var_defs> TopVarDefRest
 %type <vec_f_params> FuncFParams // 函数形参列表
 %type <vec_r_params> FuncRParams // 函数实参列表
 
@@ -105,54 +107,92 @@ CompItemList
   ;
 
 CompItem
-  : ConstDecl { $$ = $1; }
-  | VarDeclTop { $$ = $1; }
-  | FuncDef { $$ = $1; }
+  : CONST BType ConstDefList ';' {
+    auto ast = new ConstDeclAST();
+    ast->const_defs = std::move(*$3);
+    delete $3;
+    $$ = ast;
+  }
+  | INT IDENT TopAfterInt {
+    std::string ident = *std::unique_ptr<std::string>($2);
+    if (auto* func = dynamic_cast<FuncDefAST*>($3)) {
+      func->func_type = std::make_unique<FuncTypeAST>(FuncTypeAST::Type::TYPE_INT);
+      func->ident = std::move(ident);
+      $$ = func;
+    } else if (auto* var_decl = dynamic_cast<VarDeclAST*>($3)) {
+      assert(!var_decl->var_defs.empty());
+      var_decl->var_defs[0]->ident = std::move(ident);
+      $$ = var_decl;
+    } else {
+      delete $3;
+      yyerror(ast, "invalid top-level int item");
+      YYABORT;
+    }
+  }
+  | VOID IDENT FuncAfterIdent {
+    auto* func = dynamic_cast<FuncDefAST*>($3);
+    if (!func) {
+      delete $3;
+      yyerror(ast, "invalid top-level void item");
+      YYABORT;
+    }
+    func->func_type = std::make_unique<FuncTypeAST>(FuncTypeAST::Type::TYPE_VOID);
+    func->ident = *std::unique_ptr<std::string>($2);
+    $$ = func;
+  }
   ;
 
-// Top-level variable declaration avoids BType(INT) vs FuncDef ambiguity.
-VarDeclTop
-  : INT VarDefList ';' {
+TopAfterInt
+  : FuncAfterIdent { $$ = $1; }
+  | OptInitVal TopVarDefRest ';' {
     auto ast = new VarDeclAST();
-    ast->var_defs = std::move(*$2);
+    auto first_var = std::make_unique<VarDefAST>();
+    first_var->ident = ""; // filled by parent rule: INT IDENT TopAfterInt
+    if ($1 != nullptr) {
+      first_var->init_val = std::make_optional<std::unique_ptr<ExprAST>>(static_cast<ExprAST*>($1));
+    } else {
+      first_var->init_val = std::nullopt;
+    }
+    ast->var_defs.push_back(std::move(first_var));
+    for (auto& def : *$2) {
+      ast->var_defs.push_back(std::move(def));
+    }
     delete $2;
     $$ = ast;
   }
   ;
 
-// FuncDef ::= ("int" | "void") IDENT "(" [FuncFParams] ")" Block;
-FuncDef
-  : INT IDENT '(' ')' Block {
+FuncAfterIdent
+  : '(' ')' Block {
     auto ast = new FuncDefAST();
-    ast->func_type = std::make_unique<FuncTypeAST>(FuncTypeAST::Type::TYPE_INT);
-    ast->ident = *unique_ptr<std::string>($2);
-    ast->block = unique_ptr<BlockAST>(static_cast<BlockAST*>($5));
+    ast->block = std::unique_ptr<BlockAST>(static_cast<BlockAST*>($3));
     $$ = ast;
   }
-  | INT IDENT '(' FuncFParams ')' Block {
+  | '(' FuncFParams ')' Block {
     auto ast = new FuncDefAST();
-    ast->func_type = std::make_unique<FuncTypeAST>(FuncTypeAST::Type::TYPE_INT);
-    ast->ident = *unique_ptr<std::string>($2);
-    ast->params = std::move(*$4);
-    delete $4;
-    ast->block = unique_ptr<BlockAST>(static_cast<BlockAST*>($6));
+    ast->params = std::move(*$2);
+    delete $2;
+    ast->block = std::unique_ptr<BlockAST>(static_cast<BlockAST*>($4));
     $$ = ast;
   }
-  | VOID IDENT '(' ')' Block {
-    auto ast = new FuncDefAST();
-    ast->func_type = std::make_unique<FuncTypeAST>(FuncTypeAST::Type::TYPE_VOID);
-    ast->ident = *unique_ptr<std::string>($2);
-    ast->block = unique_ptr<BlockAST>(static_cast<BlockAST*>($5));
-    $$ = ast;
+  ;
+
+OptInitVal
+  : /* empty */ {
+    $$ = nullptr;
   }
-  | VOID IDENT '(' FuncFParams ')' Block {
-    auto ast = new FuncDefAST();
-    ast->func_type = std::make_unique<FuncTypeAST>(FuncTypeAST::Type::TYPE_VOID);
-    ast->ident = *unique_ptr<std::string>($2);
-    ast->params = std::move(*$4);
-    delete $4;
-    ast->block = unique_ptr<BlockAST>(static_cast<BlockAST*>($6));
-    $$ = ast;
+  | '=' InitVal {
+    $$ = $2;
+  }
+  ;
+
+TopVarDefRest
+  : /* empty */ {
+    $$ = new std::vector<std::unique_ptr<VarDefAST>>();
+  }
+  | TopVarDefRest ',' VarDef {
+    $1->push_back(std::unique_ptr<VarDefAST>(static_cast<VarDefAST*>($3)));
+    $$ = $1;
   }
   ;
 
