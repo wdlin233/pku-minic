@@ -54,11 +54,12 @@ extern YYLTYPE yylloc;
 %token <int_val> INT_CONST
 
 // 非终结符的类型定义
-%type <ast_val> CompUnit FuncDef FuncType Block BlockItem Number 
+%type <ast_val> CompUnit FuncDef Block BlockItem Number 
 %type <ast_val> Exp PrimaryExp AddExp MulExp UnaryExp RelExp EqExp LAndExp LOrExp
 %type <ast_val> Decl ConstDecl ConstDef ConstInitVal VarDecl VarDef InitVal LVal ConstExp
 %type <ast_val> Stmt OpenStmt ClosedStmt OtherStmt
 %type <ast_val> CompItem
+%type <ast_val> VarDeclTop
 %type <ast_val> FuncFParam
 %type <vec_comp_items> CompItemList
 %type <vec_defs> ConstDefList
@@ -104,34 +105,55 @@ CompItemList
   ;
 
 CompItem
-  : Decl { $$ = $1; }
+  : ConstDecl { $$ = $1; }
+  | VarDeclTop { $$ = $1; }
   | FuncDef { $$ = $1; }
   ;
 
-// FuncDef ::= FuncType IDENT "(" [FuncFParams] ")" Block;
+// Top-level variable declaration avoids BType(INT) vs FuncDef ambiguity.
+VarDeclTop
+  : INT VarDefList ';' {
+    auto ast = new VarDeclAST();
+    ast->var_defs = std::move(*$2);
+    delete $2;
+    $$ = ast;
+  }
+  ;
+
+// FuncDef ::= ("int" | "void") IDENT "(" [FuncFParams] ")" Block;
 FuncDef
-  : FuncType IDENT '(' ')' Block {
+  : INT IDENT '(' ')' Block {
     auto ast = new FuncDefAST();
-    ast->func_type = unique_ptr<FuncTypeAST>(static_cast<FuncTypeAST*>($1));
+    ast->func_type = std::make_unique<FuncTypeAST>(FuncTypeAST::Type::TYPE_INT);
     ast->ident = *unique_ptr<std::string>($2);
     ast->block = unique_ptr<BlockAST>(static_cast<BlockAST*>($5));
     $$ = ast;
   }
-  | FuncType IDENT '(' FuncFParams ')' Block {
+  | INT IDENT '(' FuncFParams ')' Block {
     auto ast = new FuncDefAST();
-    ast->func_type = unique_ptr<FuncTypeAST>(static_cast<FuncTypeAST*>($1));
+    ast->func_type = std::make_unique<FuncTypeAST>(FuncTypeAST::Type::TYPE_INT);
     ast->ident = *unique_ptr<std::string>($2);
     ast->params = std::move(*$4);
     delete $4;
     ast->block = unique_ptr<BlockAST>(static_cast<BlockAST*>($6));
     $$ = ast;
   }
-  ;
-
-// FuncType ::= "void" | "int";
-FuncType
-  : INT { $$ = new FuncTypeAST(FuncTypeAST::Type::TYPE_INT); }
-  | VOID { $$ = new FuncTypeAST(FuncTypeAST::Type::TYPE_VOID); }
+  | VOID IDENT '(' ')' Block {
+    auto ast = new FuncDefAST();
+    ast->func_type = std::make_unique<FuncTypeAST>(FuncTypeAST::Type::TYPE_VOID);
+    ast->ident = *unique_ptr<std::string>($2);
+    ast->block = unique_ptr<BlockAST>(static_cast<BlockAST*>($5));
+    $$ = ast;
+  }
+  | VOID IDENT '(' FuncFParams ')' Block {
+    auto ast = new FuncDefAST();
+    ast->func_type = std::make_unique<FuncTypeAST>(FuncTypeAST::Type::TYPE_VOID);
+    ast->ident = *unique_ptr<std::string>($2);
+    ast->params = std::move(*$4);
+    delete $4;
+    ast->block = unique_ptr<BlockAST>(static_cast<BlockAST*>($6));
+    $$ = ast;
+  }
   ;
 
 // FuncFParams ::= FuncFParam {"," FuncFParam};
