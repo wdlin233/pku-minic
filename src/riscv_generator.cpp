@@ -99,6 +99,25 @@ bool FrameAllocator::has_value_slot(const Value* v) const {
 }
 
 void RISCVGenerator::GenerateRISCV(const Program& koopa_program, std::ostream& os) {
+    if (!koopa_program.global_allocs.empty()) {
+        os << "\t.data\n";
+        for (const auto& g : koopa_program.global_allocs) {
+            const auto* alloc = std::get_if<Value::Alloc>(&g->kind);
+            assert(alloc && alloc->is_global && "global_allocs must only contain global alloc values");
+            std::string label = g->name;
+            if (!label.empty() && label[0] == '@') {
+                label = label.substr(1);
+            }
+            os << "\t.globl " << label << "\n";
+            os << label << ":\n";
+            if (alloc->global_init.has_value()) {
+                os << "\t.word " << alloc->global_init.value() << "\n";
+            } else {
+                os << "\t.word 0\n";
+            }
+        }
+    }
+
     os << "\t.text\n";
     for (const auto& func_ptr : koopa_program.functions) {
         os << "\t.globl " << func_ptr->name.substr(1) << "\n";  // name is @ident
@@ -236,16 +255,38 @@ void RISCVGenerator::visit(const Value& value, std::ostream& os) {
         }
         else if constexpr (std::is_same_v<T, Value::Load>) {
             assert(arg.ptr->type && arg.ptr->type->kind == Type::POINTER && "Load source must be an address");
-            int src_offset = frame_allocator.value_offset(arg.ptr); // offset of @x
-            os << "\tlw t0, " << src_offset << "(sp)\n";
+            if (frame_allocator.has_value_slot(arg.ptr)) {
+                int src_offset = frame_allocator.value_offset(arg.ptr); // offset of @x
+                os << "\tlw t0, " << src_offset << "(sp)\n";
+            } else {
+                // Global variable address
+                // la rd, label
+                std::string label = arg.ptr->name;
+                if (!label.empty() && label[0] == '@') {
+                    label = label.substr(1);
+                }
+                os << "\tla t1, " << label << "\n";
+                os << "\tlw t0, 0(t1)\n";
+            }
             int res_offset = frame_allocator.value_offset(self); // offset of %0
             os << "\tsw t0, " << res_offset << "(sp)\n";
         }
         else if constexpr (std::is_same_v<T, Value::Store>) {
             assert(arg.dest->type && arg.dest->type->kind == Type::POINTER && "Store destination must be an address");
             load_value_to_reg(arg.value.get(), "t0", os);
-            int dest_offset = frame_allocator.value_offset(arg.dest);
-            os << "\tsw t0, " << dest_offset << "(sp)\n";
+            if (frame_allocator.has_value_slot(arg.dest)) {
+                int dest_offset = frame_allocator.value_offset(arg.dest);
+                os << "\tsw t0, " << dest_offset << "(sp)\n";
+            } else {
+                // Global variable address
+                // la rd, label
+                std::string label = arg.dest->name;
+                if (!label.empty() && label[0] == '@') {
+                    label = label.substr(1);
+                }
+                os << "\tla t1, " << label << "\n";
+                os << "\tsw t0, 0(t1)\n";
+            }
         }
         else if constexpr (std::is_same_v<T, Value::Branch>) {
             load_value_to_reg(arg.cond.get(), "t0", os);
