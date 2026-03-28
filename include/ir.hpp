@@ -62,7 +62,11 @@ struct Value {
         const Value* ptr;
     };
 
-    struct Alloc { /* type info in Value::type*/ };
+    struct Alloc {
+        bool is_global = false;
+        std::optional<int32_t> global_init; // global scalar initializer; nullopt means zeroinit
+    };
+    
     struct Load { const Value* ptr; };
     struct Store {
         std::unique_ptr<Value> value;
@@ -155,6 +159,7 @@ struct FuncDecl {
 
 struct Program {
     std::vector<FuncDecl> decls;
+    std::vector<std::unique_ptr<Value>> global_allocs;
     std::vector<std::unique_ptr<Function>> functions;
 
     void Dump(std::ostream& os) const;

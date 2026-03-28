@@ -46,7 +46,19 @@ void Program::Dump(std::ostream& os) const {
         decl.Dump(os);
         os << "\n";
     }
-    if (!decls.empty() && !functions.empty()) {
+    for (const auto& g : global_allocs) {
+        const auto* alloc = std::get_if<Value::Alloc>(&g->kind);
+        assert(alloc && alloc->is_global && "Program::global_allocs must contain global alloc values");
+        os << "global " << g->name << " = alloc i32, ";
+        if (alloc->global_init.has_value()) {
+            os << alloc->global_init.value();
+        } else {
+            os << "zeroinit";
+        }
+        os << "\n";
+    }
+
+    if ((!decls.empty() || !global_allocs.empty()) && !functions.empty()) {
         os << "\n";
     }
     for (const auto& func : functions) {

@@ -18,6 +18,11 @@ std::unique_ptr<Program> IRGenerator::Generate(const CompUnitAST& ast) {
 
     register_builtin_functions();
 
+    // Process global declarations first so symbols are visible to later code.
+    for (const auto& decl : ast.decls) {
+        visit(*decl);
+    }
+
     for (const auto& func_def : ast.func_defs) {
         if (symbol_tables[0].count(func_def->ident)) {
             std::cerr << "Semantic Error: Redefintion Function." << std::endl;
@@ -155,6 +160,35 @@ void IRGenerator::visit(const ConstDeclAST& const_decl) {
 }
 
 void IRGenerator::visit(const VarDeclAST& var_decl) {
+    // Global variables are represented as program-level alloc objects.
+    if (current_function == nullptr) {
+        for (const auto& var_def : var_decl.var_defs) {
+            if (symbol_tables.back().count(var_def->ident)) {
+                std::cerr << "Semantic Error: Redefinition of variable '" << var_def->ident << "'" << std::endl;
+                exit(1);
+            }
+
+            auto global_alloc = std::make_unique<Value>(Value::Alloc{});
+            global_alloc->name = "@" + var_def->ident;
+            global_alloc->type = std::make_unique<Type>();
+            global_alloc->type->kind = Type::POINTER;
+
+            auto& alloc_info = std::get<Value::Alloc>(global_alloc->kind);
+            alloc_info.is_global = true;
+            if (var_def->init_val.has_value()) {
+                // SysY global variable initialization must be compile-time constant.
+                alloc_info.global_init = evaluate_const_expr(*var_def->init_val.value());
+            }
+
+            const Value* var_ptr = global_alloc.get();
+            SymbolInfo info;
+            info.kind = var_ptr;
+            symbol_tables.back()[var_def->ident] = info;
+            program->global_allocs.push_back(std::move(global_alloc));
+        }
+        return;
+    }
+
     for (const auto& var_def : var_decl.var_defs) {
         if (symbol_tables.back().count(var_def->ident)) {
             std::cerr << "Semantic Error: Redefinition of variable '" << var_def->ident << "'" << std::endl;
