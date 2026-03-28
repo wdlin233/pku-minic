@@ -11,6 +11,31 @@
 #include <variant>
 #include <vector>
 
+namespace {
+
+std::optional<Value::Binary::Op> to_binary_op(int token) {
+    switch (token) {
+        case '+': return Value::Binary::ADD;
+        case '-': return Value::Binary::SUB;
+        case '*': return Value::Binary::MUL;
+        case '/': return Value::Binary::DIV;
+        case '%': return Value::Binary::MOD;
+        case '>': return Value::Binary::GT;
+        case '<': return Value::Binary::LT;
+        case '&': return Value::Binary::AND;
+        case '|': return Value::Binary::OR;
+        case T_LE: return Value::Binary::LE;
+        case T_GE: return Value::Binary::GE;
+        case T_EQ: return Value::Binary::EQ;
+        case T_NE: return Value::Binary::NE;
+        case T_LAND: return Value::Binary::AND;
+        case T_LOR: return Value::Binary::OR;
+        default: return std::nullopt;
+    }
+}
+
+}  // namespace
+
 std::unique_ptr<Program> IRGenerator::Generate(const CompUnitAST& ast) {
     program = std::make_unique<Program>();
     
@@ -519,113 +544,79 @@ std::unique_ptr<Value> IRGenerator::visit(const ExprAST& expr) {
     }
     
     if (auto binary = dynamic_cast<const BinaryExprAST*>(&expr)) {
+        auto emit_inst = [&](std::unique_ptr<Value> inst) -> const Value* {
+            const Value* ptr = inst.get();
+            current_bb->insts.push_back(std::move(inst));
+            return ptr;
+        };
+        auto create_sc_block = [&](const char* tag) -> BasicBlock* {
+            auto bb = std::make_unique<BasicBlock>();
+            bb->name = "%" + std::string(tag) + "_" + std::to_string(temp_var_counter++);
+            BasicBlock* bb_ptr = bb.get();
+            current_function->blocks.push_back(std::move(bb));
+            return bb_ptr;
+        };
+
+        if (binary->op == T_LAND || binary->op == T_LOR) {
+            // Materialize the boolean result with control-flow short-circuiting.
+
+            // pseudo phi node
+            auto result_alloc = std::make_unique<Value>(Value::Alloc{});
+            result_alloc->name = new_temp_var_name();
+            result_alloc->type = std::make_unique<Type>();
+            result_alloc->type->kind = Type::POINTER;
+            const Value* result_ptr = emit_inst(std::move(result_alloc));
+
+            BasicBlock* rhs_bb_ptr = create_sc_block("sc_rhs");
+            BasicBlock* true_bb_ptr = create_sc_block("sc_true");
+            BasicBlock* false_bb_ptr = create_sc_block("sc_false");
+            BasicBlock* end_bb_ptr = create_sc_block("sc_end");
+
+            if (binary->op == T_LAND) {
+                // AND
+                // if (lhs) goto rhs; else goto false
+                visit_as_condition(*binary->lhs, rhs_bb_ptr, false_bb_ptr);
+            } else {
+                // OR
+                // if (lhs) goto true; else goto rhs
+                visit_as_condition(*binary->lhs, true_bb_ptr, rhs_bb_ptr);
+            }
+
+            // calculate rhs if we need to evaluate rhs
+            current_bb = rhs_bb_ptr;
+            visit_as_condition(*binary->rhs, true_bb_ptr, false_bb_ptr);
+
+            auto emit_store_and_jump = [&](BasicBlock* bb, int value) {
+                current_bb = bb;
+                current_bb->insts.push_back(
+                    std::make_unique<Value>(
+                        Value::Store{std::make_unique<Value>(Value::Integer{value}), result_ptr}
+                    )
+                );
+                current_bb->insts.push_back(std::make_unique<Value>(Value::Jump{end_bb_ptr}));
+            };
+
+            // write true/false to result_ptr(pseudo phi node) and jump to end
+            emit_store_and_jump(true_bb_ptr, 1);
+            emit_store_and_jump(false_bb_ptr, 0);
+
+            current_bb = end_bb_ptr;
+            auto load_result = std::make_unique<Value>(Value::Load{result_ptr});
+            load_result->name = new_temp_var_name();
+            load_result->type = std::make_unique<Type>();
+            load_result->type->kind = Type::INTEGER;
+            const Value* load_result_ptr = emit_inst(std::move(load_result));
+            return std::make_unique<Value>(Value::SymbolRef{load_result_ptr});
+        }
+
         auto lhs_val = visit(*binary->lhs);
         auto rhs_val = visit(*binary->rhs);
+        auto op = to_binary_op(binary->op);
+        assert(op.has_value() && "Unsupported binary operator");
 
-        if (binary->op == T_LAND) {
-            auto lhs_bool = std::make_unique<Value>(
-                Value::Binary {
-                    Value::Binary::NE,
-                    std::move(lhs_val),
-                    std::make_unique<Value>(Value::Integer{0})
-                }
-            );
-            lhs_bool->name = new_temp_var_name();
-            lhs_bool->type = std::make_unique<Type>();
-            lhs_bool->type->kind = Type::INTEGER;
-            current_bb->insts.push_back(std::move(lhs_bool));
-            auto lhs_ref = current_bb->insts.back().get();
-
-            auto rhs_bool = std::make_unique<Value>(
-                Value::Binary {
-                    Value::Binary::NE,
-                    std::move(rhs_val),
-                    std::make_unique<Value>(Value::Integer{0})
-                }
-            );
-            rhs_bool->name = new_temp_var_name();
-            rhs_bool->type = std::make_unique<Type>();
-            rhs_bool->type->kind = Type::INTEGER;
-            current_bb->insts.push_back(std::move(rhs_bool));
-            auto rhs_ref = current_bb->insts.back().get();
-
-            auto result = std::make_unique<Value>(
-                Value::Binary {
-                    Value::Binary::AND,
-                    std::make_unique<Value>(Value::SymbolRef{lhs_ref}),
-                    std::make_unique<Value>(Value::SymbolRef{rhs_ref})
-                }
-            );
-            result->name = new_temp_var_name();
-            result->type = std::make_unique<Type>();
-            result->type->kind = Type::INTEGER;
-            current_bb->insts.push_back(std::move(result));
-            return std::make_unique<Value>(Value::SymbolRef{current_bb->insts.back().get()});
-        }
-
-        if (binary->op == T_LOR) {
-            auto lhs_bool = std::make_unique<Value>(
-                Value::Binary {
-                    Value::Binary::NE,
-                    std::move(lhs_val),
-                    std::make_unique<Value>(Value::Integer{0})
-                }
-            );
-            lhs_bool->name = new_temp_var_name();
-            lhs_bool->type = std::make_unique<Type>();
-            lhs_bool->type->kind = Type::INTEGER;
-            current_bb->insts.push_back(std::move(lhs_bool));
-            auto lhs_ref = current_bb->insts.back().get();
-
-            auto rhs_bool = std::make_unique<Value>(
-                Value::Binary {
-                    Value::Binary::NE,
-                    std::move(rhs_val),
-                    std::make_unique<Value>(Value::Integer{0})
-                }
-            );
-            rhs_bool->name = new_temp_var_name();
-            rhs_bool->type = std::make_unique<Type>();
-            rhs_bool->type->kind = Type::INTEGER;
-            current_bb->insts.push_back(std::move(rhs_bool));
-            auto rhs_ref = current_bb->insts.back().get();
-
-            auto result = std::make_unique<Value>(
-                Value::Binary {
-                    Value::Binary::OR,
-                    std::make_unique<Value>(Value::SymbolRef{lhs_ref}),
-                    std::make_unique<Value>(Value::SymbolRef{rhs_ref})
-                }
-            );
-            result->name = new_temp_var_name();
-            result->type = std::make_unique<Type>();
-            result->type->kind = Type::INTEGER;
-            current_bb->insts.push_back(std::move(result));
-            return std::make_unique<Value>(Value::SymbolRef{current_bb->insts.back().get()});
-        }
-
-        Value::Binary::Op op;
-        switch (binary->op) {
-            case '+': op = Value::Binary::ADD; break;
-            case '-': op = Value::Binary::SUB; break;
-            case '*': op = Value::Binary::MUL; break;
-            case '/': op = Value::Binary::DIV; break;
-            case '%': op = Value::Binary::MOD; break;
-            case '>': op = Value::Binary::GT; break;
-            case '<': op = Value::Binary::LT; break;
-            case '&': op = Value::Binary::AND; break;
-            case '|': op = Value::Binary::OR; break;
-            case T_LE: op = Value::Binary::LE; break;
-            case T_GE: op = Value::Binary::GE; break;
-            case T_EQ: op = Value::Binary::EQ; break;
-            case T_NE: op = Value::Binary::NE; break;
-            
-            default:
-                assert(false && "Unsupported binary operator");
-        }
         auto bin_inst = std::make_unique<Value>(
             Value::Binary {
-                op,
+                *op,
                 std::move(lhs_val),
                 std::move(rhs_val)
             }
@@ -634,7 +625,7 @@ std::unique_ptr<Value> IRGenerator::visit(const ExprAST& expr) {
         bin_inst->type = std::make_unique<Type>();
         bin_inst->type->kind = Type::INTEGER;
 
-        Value* result_ptr = bin_inst.get();
+        const Value* result_ptr = bin_inst.get();
         current_bb->insts.push_back(std::move(bin_inst));
 
         return std::make_unique<Value>(Value::SymbolRef{result_ptr});
